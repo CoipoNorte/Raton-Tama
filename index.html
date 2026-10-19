@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f5f2eb" />
+    <meta name="description" content="Ratón Tama, un pequeño hogar para una mascota virtual que crece contigo." />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%icon.svg" />
+    <title>Ratón Tama - Tu pequeño gran hogar</title>
+    <style>
+      html, body, #root { width: 100%; height: 100%; margin: 0; }
+      body { background: #f5f2eb; font-family: "Trebuchet MS", system-ui, sans-serif; }
+      .boot-screen { display: flex; width: 100%; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #756a5f; background: radial-gradient(ellipse at 50% 52%, #eaf3e8, #f5f2eb 65%); }
+      .boot-orbit { display: grid; width: 54px; height: 54px; place-items: center; border: 1px solid #d6e5d6; border-radius: 20px; color: #739780; background: rgba(255,255,255,.68); animation: boot-breathe 1.8s ease-in-out infinite; }
+      .boot-orbit svg { width: 32px; height: 32px; }
+      .boot-screen p { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: -.02em; }
+      .boot-screen small { color: #a49a8e; font-size: 10px; }
+      .noscript-warning { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; color: #594d43; background: #f5f2eb; text-align: center; }
+      @keyframes boot-breathe { 50% { transform: translateY(-4px) rotate(3deg); } }
+      @media (prefers-reduced-motion: reduce) { .boot-orbit { animation: none; } }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <main class="boot-screen" role="status" aria-live="polite">
+        <span class="boot-orbit" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none"><ellipse cx="14" cy="14" rx="8" ry="10" fill="#e995aa"/><ellipse cx="34" cy="14" rx="8" ry="10" fill="#e995aa"/><ellipse cx="24" cy="28" rx="17" ry="16" fill="#efc0a7"/><circle cx="18" cy="25" r="2" fill="#51423f"/><circle cx="30" cy="25" r="2" fill="#51423f"/><path d="M21 32q3-3 6 0m-3 0v3m0 0q-3 3-5 1m5-1q3 3 5 1" stroke="#805860" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </span>
+        <p>Despertando a tu mascota...</p>
+        <small>Tu pequeño hogar se está preparando.</small>
+        <small id="boot-error" style="display:none;color:#c26b63;max-width:260px"></small>
+      </main>
+    </div>
+    <noscript><div class="noscript-warning">Ratón Tama necesita JavaScript para cuidar de tu mascota. Actívalo y vuelve a intentarlo.</div></noscript>
+    <script>
+      // Si la app no consigue reemplazar la splash, lo cuenta en lugar de quedarse en blanco.
+      window.addEventListener("error", function (evento) {
+        var aviso = document.getElementById("boot-error");
+        if (!aviso) return;
+        var todavía = document.querySelector("#root .boot-screen");
+        if (!todavía) return;
+        aviso.style.display = "block";
+        aviso.textContent = "No ha podido cargarse el juego: " + (evento && evento.message ? evento.message : "error desconocido");
+      });
+      window.addEventListener("unhandledrejection", function (evento) {
+        var aviso = document.getElementById("boot-error");
+        if (aviso && document.querySelector("#root .boot-screen")) {
+          aviso.style.display = "block";
+          aviso.textContent = "No ha podido cargarse el juego: " + (evento.reason && evento.reason.message ? evento.reason.message : evento.reason);
+        }
+      });
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
