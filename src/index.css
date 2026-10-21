@@ -180,6 +180,18 @@ button:disabled { cursor: not-allowed; }
 .action-shortcut { position: absolute; top: 4px; right: 7px; color: #b3a79c; font-size: 8px; font-weight: 700; }
 .action-count { position: absolute; top: 5px; left: 7px; display: grid; width: 15px; height: 15px; place-items: center; border-radius: 50%; color: #fff; background: #c98385; font-size: 8px; font-weight: 750; }
 .action-help { justify-self: end; color: #a1968c; font-size: 10px; text-align: right; }
+.tenderness-bar { animation: tenderness-enter .34s cubic-bezier(.22, 1, .36, 1) both; }
+.tenderness-title { display: inline-flex; align-items: center; gap: 6px; color: #a57d51; }
+.tenderness-button .action-icon { color: #9a7eb2; background: #f2edf7; }
+.ternura-yawn .action-icon { color: #8087ae; background: #eef0f8; }
+.ternura-jump .action-icon { color: #bd8759; background: #faeddf; }
+.ternura-bite .action-icon { color: #ae794e; background: #f8ecdc; }
+.ternura-spin .action-icon { color: #bf964d; background: #fbf2d9; }
+.tenderness-close .action-icon { color: #a57b72; background: #f7ebe7; }
+.explorer-inline-note { margin: 0; max-width: 510px; color: #94877b; font-size: 9px; line-height: 1.45; }
+.explorer-open-bottom { align-self: flex-start; color: #fff; border-color: transparent; background: #789b83; box-shadow: 0 5px 14px rgba(91, 133, 104, .2); }
+.explorer-open-bottom:hover { color: #fff; background: #688c74; }
+@keyframes tenderness-enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 
 /* La bandeja vive pegada al borde inferior: nunca tapa a Mochi mientras arrastras. */
 .food-tray { position: absolute; z-index: 10; right: 0; left: 0; bottom: 10px; margin-right: auto; margin-left: auto; display: flex; flex-direction: column; align-items: center; width: min(470px, calc(100% - 14px)); padding: 9px 12px 8px; border: 1px solid rgba(138, 121, 101, .16); border-radius: 18px; background: rgba(255, 253, 247, .95); box-shadow: 0 14px 34px rgba(73, 59, 48, .16); backdrop-filter: blur(14px); touch-action: none; }
@@ -481,13 +493,15 @@ button:disabled { cursor: not-allowed; }
   .game-footer { min-height: 78px; height: 78px; padding: 2px 0 max(6px, env(safe-area-inset-bottom)); }
   .action-bar-inner { display: block; }
   .action-heading, .action-help { display: none; }
-  .action-list { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; width: 100%; }
+  .action-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; width: 100%; }
   .action-button { width: 100%; min-width: 0; min-height: 59px; gap: 3px; padding: 4px 2px; border-radius: 15px; box-shadow: 0 3px 10px rgba(95, 78, 62, .04); }
   .action-icon { width: 29px; height: 29px; border-radius: 10px; }
   .action-icon svg { width: 17px; height: 17px; }
   .action-label { font-size: 8.5px; }
   .action-shortcut { display: none; }
   .action-count { top: 3px; left: 3px; width: 13px; height: 13px; font-size: 7px; }
+  .tenderness-list { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .tenderness-title { display: none; }
   .stage-topline { top: 12px; left: 13px; right: 13px; }
   .stage-name { font-size: 15px; }
   .stage-stage-label { padding: 3px 6px; font-size: 8px; }
@@ -498,7 +512,7 @@ button:disabled { cursor: not-allowed; }
   .stage-clock { font-size: 9px; }
   .mood-callout { top: 54px; right: 13px; min-height: 26px; padding: 0 8px; font-size: 8px; }
   .stage-lowerline { bottom: 10px; left: 14px; font-size: 8px; }
-  .pet-balloons { top: 26%; gap: 5px; transform: translateX(calc(-50% - clamp(56px, 17vw, 82px))); }
+  .pet-balloons { top: 26%; gap: 5px; transform: translateX(calc(-50% - clamp(84px, 24vw, 108px))); }
   .balloon { min-width: 26px; height: 26px; padding: 0 6px; }
   .balloon svg { width: 13px; height: 13px; }
   .paused-ribbon { bottom: 38px; min-height: 31px; padding: 6px 10px; font-size: 9px; }
@@ -537,30 +551,73 @@ button:disabled { cursor: not-allowed; }
   .gamepad-toast { top: max(66px, env(safe-area-inset-top)); }
 }
 
-@media (max-width: 370px) {
+/* Teléfonos pequeños (iPhone SE 375px, Android 360px): la interfaz se compacta
+   de verdad en lugar de encogerse: cabecera mínima, medidores solo icono +
+   valor, acciones más bajas y paneles a todo lo ancho. */
+@media (max-width: 390px) {
   .app-shell { padding: 0 7px; }
-  .brand-copy strong { font-size: 15px; }
-  .brand-mark { width: 36px; height: 36px; }
-  .header-tools { gap: 1px; }
-  .header-coins { min-width: 44px; padding: 0 5px; }
-  .mobile-tools { gap: 1px; }
-  .mobile-tools > .icon-button:first-child { display: none; }
-  .header-coins { min-width: 46px; }
-  .mobile-needs { height: 72px; min-height: 72px; padding-top: 7px; }
-  .mobile-needs .needs-list { gap: 2px; }
-  .need-meter-compact { grid-template-columns: 14px minmax(0, 1fr); gap: 2px; }
-  .need-meter-compact .need-icon { width: 14px; }
-  .need-meter-compact .need-icon svg { width: 13px; height: 13px; }
-  .need-meter-compact .need-label { font-size: 7.5px; }
-  .need-meter-compact .need-value { font-size: 7px; }
+  .app-header { height: 56px; min-height: 56px; gap: 4px; }
+  .brand-lockup { gap: 0; min-width: 0; }
+  .brand-mark { width: 34px; height: 34px; border-radius: 11px; }
+  .brand-mark > span { width: 29px; height: 29px; }
+  .brand-creature-mark { width: 27px; height: 27px; }
+  .brand-copy { display: none; }
+  .header-tools { gap: 2px; }
+  .header-coins { min-width: 44px; height: 32px; padding: 0 6px; font-size: 9px; }
+  .header-coins svg { width: 12px; }
+  .header-coins strong { font-size: 9px; }
+  .mobile-tools { gap: 2px; }
+  .mobile-tools .icon-button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .mobile-tools .icon-button svg { width: 16px; }
+  .mobile-needs { height: 64px; min-height: 64px; padding: 6px 0 4px; }
+  .mobile-needs .needs-list { gap: 3px; }
+  .need-meter-compact { grid-template-columns: 1fr; justify-items: center; gap: 1px; }
+  .need-meter-compact .need-icon { width: 15px; height: 15px; }
+  .need-meter-compact .need-icon svg { width: 14px; height: 14px; }
+  .need-meter-compact .need-detail { grid-template-columns: 1fr; justify-items: center; gap: 1px; width: 100%; }
+  .need-meter-compact .need-label { display: none; }
+  .need-meter-compact .need-value { font-size: 8px; line-height: 1; }
+  .need-meter-compact .need-value small { display: none; }
+  .need-meter-compact .need-track { grid-column: 1; width: 100%; }
+  .game-footer { min-height: 70px; height: 70px; }
   .action-list { gap: 3px; }
-  .action-button { min-height: 57px; }
-  .action-label { font-size: 8px; }
+  .action-button { min-height: 54px; gap: 1px; padding: 3px 1px; border-radius: 13px; }
+  .action-icon { width: 25px; height: 25px; border-radius: 9px; }
+  .action-icon svg { width: 15px; height: 15px; }
+  .action-label { font-size: 7.5px; }
+  .action-count { top: 2px; left: 2px; width: 12px; height: 12px; font-size: 6.5px; }
+  .stage-topline { top: 9px; left: 10px; right: 10px; }
+  .stage-name { font-size: 13.5px; }
+  .stage-clock { display: none; }
+  .mood-callout { top: 48px; right: 10px; }
+  .pet-balloons { transform: translateX(calc(-50% - clamp(48px, 15vw, 64px))); }
+  .care-card { top: 56px; left: 8px; width: min(196px, calc(100% - 16px)); }
+  .care-steps { display: none; }
+  .care-help { right: 8px; bottom: 8px; }
   .food-tray { padding-right: 5px; padding-left: 5px; }
   .food-choice { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
   .food-choice-list { gap: 3px; }
+  .food-target-ring { width: clamp(110px, 40vw, 150px); height: clamp(76px, 24vw, 100px); }
+  .modal-panel { padding: 16px 14px 13px; }
+  .shop-row { grid-template-columns: 36px minmax(0, 1fr) auto; }
+  .buy-button { min-width: 60px; }
+  .species-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .memory-sequence { gap: 5px; }
   .sequence-dot { width: 39px; height: 39px; border-radius: 12px; }
+  .direction-pad { grid-template-columns: repeat(4, 44px); gap: 4px; }
+  .direction-key { width: 44px; height: 44px; min-width: 44px; min-height: 44px; }
+}
+
+@media (max-width: 340px) {
+  .mobile-tools > .icon-button:first-child { display: none; }
+  .header-coins { min-width: 40px; padding: 0 4px; }
+  .action-label { font-size: 7px; }
+  .action-button { min-height: 52px; }
+  .game-footer { min-height: 66px; height: 66px; }
+  .mobile-needs { height: 58px; min-height: 58px; }
+  .food-choice { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .care-card { width: min(180px, calc(100% - 16px)); }
+  .care-detail { display: none; }
 }
 
 @media (max-height: 470px) and (orientation: landscape) {
@@ -584,7 +641,7 @@ button:disabled { cursor: not-allowed; }
   .need-track { height: 4px; }
   .care-note, .mobile-needs { display: none; }
   .game-stage { order: unset; min-height: 0; border-radius: 22px; }
-  .pet-balloons { top: 20%; gap: 4px; transform: translateX(calc(-50% - clamp(52px, 8vw, 92px))); }
+  .pet-balloons { top: 20%; gap: 4px; transform: translateX(calc(-50% - clamp(70px, 12vw, 110px))); }
   .balloon { min-width: 24px; height: 24px; }
   .stage-topline { top: 9px; left: 12px; right: 12px; }
   .stage-name { font-size: 14px; }

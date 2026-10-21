@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { BedDouble, Brush, Gamepad2, Heart, Pill, Utensils } from "lucide-react";
+import { BedDouble, Brush, Gamepad2, Pill, Utensils } from "lucide-react";
 
 export type AccionBarra = "comer" | "jugar" | "limpiar" | "dormir" | "curar" | "mimar";
 
@@ -17,8 +17,7 @@ const acciones: { id: AccionBarra; texto: string; atajo?: string; icono: typeof 
   { id: "jugar", texto: "Jugar", atajo: "2", icono: Gamepad2 },
   { id: "limpiar", texto: "Limpiar", atajo: "3", icono: Brush },
   { id: "dormir", texto: "Dormir", icono: BedDouble },
-  { id: "curar", texto: "Curar", icono: Pill },
-  { id: "mimar", texto: "Mimar", atajo: "4", icono: Heart }
+  { id: "curar", texto: "Curar", icono: Pill }
 ];
 
 export default function BarraAcciones({ alElegir, deshabilitado, durmiendo, enferma, medicinas, mandoConectado }: Props) {

@@ -194,6 +194,31 @@ export function aplicarCuidado(partida: Partida, accion: AccionCuidado, ahora = 
   });
 }
 
+/**
+ * Caricia libre sobre el diorama (sin modo ni panel): cada roce suma un
+ * poquito de ánimo y vínculo. Devuelve null si el juego no acepta mimos.
+ */
+export function acariciarLibre(partida: Partida, ahora = Date.now()): Partida | null {
+  const base = simularProgreso(partida, ahora).partida;
+  if (!base.iniciada || base.pausada || base.mascota.seFue || base.mascota.durmiendo) return null;
+  const mascota = {
+    ...base.mascota,
+    necesidades: sumarNecesidades(base.mascota.necesidades, { animo: 2, vinculo: 3 }),
+    perfil: {
+      ...base.mascota.perfil,
+      calidad: limitar(base.mascota.perfil.calidad + 0.4),
+      disciplina: limitar(base.mascota.perfil.disciplina + 0.1),
+      acciones: { ...base.mascota.perfil.acciones, caricias: base.mascota.perfil.acciones.caricias + 1 }
+    }
+  };
+  return actualizarLogros({
+    ...base,
+    mascota,
+    contadores: { ...base.contadores, caricias: base.contadores.caricias + 1 },
+    ultimaMarcaValidada: ahora
+  });
+}
+
 export function alimentar(partida: Partida, comidaId: string, ahora = Date.now()): Partida | null {
   const base = simularProgreso(partida, ahora).partida;
   const alimento = obtenerComida(comidaId);

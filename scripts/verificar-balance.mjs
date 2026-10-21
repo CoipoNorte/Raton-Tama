@@ -24,7 +24,8 @@ for (let indice = inicio; indice < fuente.length; indice += 1) {
   }
 }
 assert.ok(fin > inicio, "No se encontró el objeto BALANCE");
-const balance = JSON.parse(fuente.slice(inicio, fin + 1));
+const sinComentarios = fuente.slice(inicio, fin + 1).replace(/^[ \t]*\/\/.*$/gm, "");
+const balance = JSON.parse(sinComentarios);
 const tasas = balance.decaimientoPorHora;
 const ritmos = [tasas.hambre, tasas.animo, tasas.energiaDia, tasas.energiaNoche, tasas.higiene, tasas.vinculo];
 assert.ok(ritmos.every((ritmo) => ritmo > 0), "Todas las necesidades deben tener un ritmo positivo");

@@ -4,7 +4,7 @@ import { Check, Heart } from "lucide-react";
 import { comprarComida, comprarMedicina, comprarObjeto } from "./game/economia";
 import { LOGROS } from "./game/logros";
 import { obtenerEspecie } from "./game/especies";
-import { alimentar, alternarPausa as cambiarEstadoPausa, aplicarCuidado, comenzarPartida, confirmarDespedida, confirmarEvolucion, cobrarMinijuego, eclosionarHuevo, prepararNuevaGeneracion, simularHoras } from "./game/simulacion";
+import { acariciarLibre as acariciarLibrePartida, alimentar, alternarPausa as cambiarEstadoPausa, aplicarCuidado, comenzarPartida, confirmarDespedida, confirmarEvolucion, cobrarMinijuego, eclosionarHuevo, prepararNuevaGeneracion, simularHoras } from "./game/simulacion";
 import { configurarAudio, despertarAudio, sonar, voz } from "./game/sound";
 import { cargarPartida, flushGuardado, guardarPartida } from "./game/storage";
 import type { ArrastreComida } from "./game/types";
@@ -50,12 +50,12 @@ export default function App() {
   const [comidaArrastrada, setComidaArrastrada] = useState<ArrastreComida | null>(null);
   const [jugueteAbierto, setJugueteAbierto] = useState(false);
   const [juguete, setJuguete] = useState<TipoJuguete>("pelota");
+  const [menuTernuraAbierto, setMenuTernuraAbierto] = useState(false);
   const [interaccionCuidado, setInteraccionCuidado] = useState<AccionCuidado | null>(null);
   const [progresoCuidado, setProgresoCuidado] = useState(0);
   const [faseCuidado, setFaseCuidado] = useState(0);
   const [bocado, setBocado] = useState<ModeloComida | null>(null);
   const temporizadorBocado = useRef<number | null>(null);
-  const completadoInteraccionRef = useRef(false);
   const [juegoActivo, setJuegoActivo] = useState<MiniJuego | null>(null);
   const [controlMinijuegoActivo, setControlMinijuegoActivo] = useState(false);
   const [forzarNoche, setForzarNoche] = useState<boolean | null>(null);
@@ -164,10 +164,19 @@ export default function App() {
     setComidaArrastrada(null);
     setInteraccionCuidado(null);
     setMenuMovilAbierto(false);
+    setMenuTernuraAbierto(false);
     setJuegoActivo(null);
     setControlMinijuegoActivo(false);
     entradaMiniJuego.current = null;
   }, [partida.evolucionPendiente, partida.despedidaPendiente, resumen]);
+
+  useEffect(() => {
+    if (!menuTernuraAbierto) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-focus-scope='ternura'] [data-initial-focus]")?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [menuTernuraAbierto]);
 
   useEffect(() => () => {
     if (temporizadorAviso.current !== null) window.clearTimeout(temporizadorAviso.current);
@@ -270,15 +279,16 @@ export default function App() {
       despertarAudio();
       return;
     }
-    if (accion === "dormir") {
-      aplicarAccionDirecta("dormir");
+    if (accion === "dormir" || accion === "mimar") {
+      // Dormir y mimar son instantáneos: las caricias además viven libres en el diorama.
+      aplicarAccionDirecta(accion);
       return;
     }
     if (accion === "curar" && !actual.mascota.enferma && actual.mascota.necesidades.salud >= 92) {
       mostrarAviso("Su salud está muy bien.");
       return;
     }
-    // Jugar, limpiar, curar y mimar se resuelven con un gesto físico sobre el diorama.
+    // Jugar, limpiar y curar se resuelven con un gesto físico sobre el diorama.
     setComidaAbierta(false);
     setPanel(null);
     setInteraccionCuidado(accion);
@@ -307,7 +317,7 @@ export default function App() {
     setFaseCuidado(0);
     progresoCuidadoRef.current = 0;
     setProgresoCuidado(0);
-    sonar(tipo === "pelota" ? "bote" : tipo === "palo" ? "jugar" : "logro");
+    sonar(tipo === "pelota" ? "bote" : tipo === "palo" ? "palo" : "estrella");
   }, []);
 
   const completarInteraccionCuidado = useCallback((accion: AccionCuidado) => {
@@ -327,25 +337,21 @@ export default function App() {
     setFaseCuidado(fase);
   }, []);
 
-  // Un botón o A/Enter equivale a un pequeño paso accesible, no completa el cuidado entero.
-  const avanzarCuidadoConTeclado = useCallback(() => {
-    if (!interaccionCuidado || completadoInteraccionRef.current) return;
-    const siguiente = progresoCuidadoRef.current + 1;
-    cambiarProgresoCuidado(siguiente, faseCuidado);
-    if (interaccionCuidado === "limpiar") {
-      const objetivoFase = (faseCuidado + 1) * BALANCE.cuidados.limpieza.manchas;
-      if (siguiente >= objetivoFase) {
-        if (faseCuidado + 1 < fasesCuidado("limpiar").length) {
-          setFaseCuidado(faseCuidado + 1);
-          sonar("logro");
-        } else {
-          completarInteraccionCuidado(interaccionCuidado);
-        }
-      }
-      return;
-    }
-    if (siguiente >= objetivoCuidado(interaccionCuidado)) completarInteraccionCuidado(interaccionCuidado);
-  }, [cambiarProgresoCuidado, completarInteraccionCuidado, faseCuidado, interaccionCuidado]);
+  // Caricia libre desde el diorama: corazones y vínculo sin abrir ningún modo.
+  const acariciarLibre = useCallback(() => {
+    despertarAudio();
+    const actualizado = acariciarLibrePartida(partidaRef.current);
+    if (!actualizado) return;
+    setPartida(actualizado);
+    activarAnimacion("mimar");
+    if (actualizado.preferencias.vibracion) vibrarMando(25);
+  }, [activarAnimacion]);
+
+  // Toque que llama la atención: Mochi mira al punto un instante.
+  const llamarAtencion = useCallback(() => {
+    despertarAudio();
+    activarAnimacion("atencion");
+  }, [activarAnimacion]);
 
   const alimentarMascota = useCallback((id: string) => {
     despertarAudio();
@@ -374,6 +380,7 @@ export default function App() {
     if (!partidaRef.current.iniciada || partidaRef.current.mascota.seFue) return;
     despertarAudio();
     setMenuMovilAbierto(false);
+    setMenuTernuraAbierto(false);
     setComidaAbierta(false);
     cerrarCuidado();
     if (nuevoPanel === "tienda") setSeccionTienda("despensa");
@@ -451,6 +458,16 @@ export default function App() {
     mostrarAviso("Una medicina más en el botiquín.");
   }, [mostrarAviso]);
 
+  const animarCriaturaDirecta = useCallback((tipo: string) => {
+    despertarAudio();
+    if (tipo === "bostezo") sonar("bostezo");
+    else if (tipo === "jugar") sonar("jugar");
+    else if (tipo === "comer") sonar("comer");
+    else if (tipo === "evolucion") sonar("evolucion");
+    activarAnimacion(tipo);
+    if (partidaRef.current.preferencias.vibracion) vibrarMando(50);
+  }, [activarAnimacion]);
+
   const registrarEntradaMinijuego = useCallback((manejador: ((accion: AccionEntrada) => void) | null) => {
     entradaMiniJuego.current = manejador;
   }, []);
@@ -464,12 +481,35 @@ export default function App() {
       if (accion === "cancelar") setJugueteAbierto(false);
       return;
     }
+    if (menuTernuraAbierto) {
+      if (accion === "cancelar") setMenuTernuraAbierto(false);
+      if (accion === "accionRapida1") animarCriaturaDirecta("bostezo");
+      if (accion === "accionRapida2") animarCriaturaDirecta("jugar");
+      if (accion === "accionRapida3") animarCriaturaDirecta("comer");
+      if (accion === "accionRapida4") animarCriaturaDirecta("evolucion");
+      return;
+    }
     if (interaccionCuidado) {
       if (accion === "cancelar") cerrarCuidado();
-      // Con teclado o mando: cada Confirmar equivale a un gesto del cuidado.
-      if (accion === "confirmar") cambiarProgresoCuidado(Math.min(objetivoCuidado(interaccionCuidado), progresoCuidadoRef.current + 1), faseCuidado);
-      if (accion === "accionRapida4" || accion === "accionRapida3") cambiarProgresoCuidado(Math.min(objetivoCuidado(interaccionCuidado), progresoCuidadoRef.current + 1), faseCuidado);
-      if (accion === "confirmar" && progresoCuidadoRef.current >= objetivoCuidado(interaccionCuidado)) completarInteraccionCuidado(interaccionCuidado);
+      const avanza = accion === "confirmar" || accion === "accionRapida2" || accion === "accionRapida3";
+      if (avanza) {
+        // Accesibilidad: Enter/A equivale a UNA pasada, nunca salta el ritual.
+        const siguiente = Math.min(objetivoCuidado(interaccionCuidado), progresoCuidadoRef.current + 1);
+        cambiarProgresoCuidado(siguiente, faseCuidado);
+        if (interaccionCuidado === "limpiar") {
+          const objetivoFase = (faseCuidado + 1) * BALANCE.cuidados.limpieza.manchas;
+          if (siguiente >= objetivoFase) {
+            if (faseCuidado < fasesCuidado("limpiar").length - 1) {
+              setFaseCuidado(faseCuidado + 1);
+              sonar("logro");
+            } else {
+              completarInteraccionCuidado(interaccionCuidado);
+            }
+          }
+        } else if (siguiente >= objetivoCuidado(interaccionCuidado)) {
+          completarInteraccionCuidado(interaccionCuidado);
+        }
+      }
       return;
     }
     if (accion === "pestanaAnterior" || accion === "pestanaSiguiente") {
@@ -504,7 +544,7 @@ export default function App() {
     if (accion === "accionRapida2") ejecutarAccion("jugar");
     if (accion === "accionRapida3") ejecutarAccion("limpiar");
     if (accion === "accionRapida4") ejecutarAccion("mimar");
-  }, [abrirPanel, alternarPausa, cambiarProgresoCuidado, cerrarCuidado, cerrarMenuMovil, completarInteraccionCuidado, comidaAbierta, ejecutarAccion, faseCuidado, interaccionCuidado, juegoActivo, jugueteAbierto, menuMovilAbierto, panel, resumen]);
+  }, [abrirPanel, alternarPausa, animarCriaturaDirecta, cambiarProgresoCuidado, cerrarCuidado, cerrarMenuMovil, completarInteraccionCuidado, comidaAbierta, ejecutarAccion, faseCuidado, interaccionCuidado, juegoActivo, jugueteAbierto, menuMovilAbierto, menuTernuraAbierto, panel, resumen]);
   const { mandoConectado, fuenteActiva } = useEntrada(manejarEntrada, { modoJuego: controlMinijuegoActivo });
 
   useEffect(() => {
@@ -541,6 +581,7 @@ export default function App() {
       return;
     }
     setPanel(null);
+    setMenuTernuraAbierto(false);
     setJuegoActivo(juego);
     setControlMinijuegoActivo(true);
     despertarAudio();
@@ -592,15 +633,16 @@ export default function App() {
     mostrarAviso(`Ahora es ${esp.nombre}`);
   }, [mostrarAviso]);
 
-  const animarCriaturaDirecta = useCallback((tipo: string) => {
-    despertarAudio();
-    if (tipo === "bostezo") sonar("bostezo");
-    else if (tipo === "jugar") sonar("jugar");
-    else if (tipo === "comer") sonar("comer");
-    else if (tipo === "evolucion") sonar("evolucion");
-    activarAnimacion(tipo);
-    if (partidaRef.current.preferencias.vibracion) vibrarMando(50);
-  }, [activarAnimacion]);
+  /** Cierra el modal para que el diorama quede visible y reemplaza la barra inferior. */
+  const abrirMenuTernura = useCallback(() => {
+    setPanel(null);
+    setMenuMovilAbierto(false);
+    setComidaAbierta(false);
+    setComidaArrastrada(null);
+    setJugueteAbierto(false);
+    cerrarCuidado();
+    setMenuTernuraAbierto(true);
+  }, [cerrarCuidado]);
 
   const avanzarHorasDirecto = useCallback((horas: number) => {
     const actual = partidaRef.current;
@@ -679,8 +721,13 @@ export default function App() {
         bocado={bocado}
         jugueteAbierto={jugueteAbierto}
         juguete={juguete}
+        menuTernuraAbierto={menuTernuraAbierto}
         alElegirJuguete={elegirJuguete}
         alCerrarJuguete={() => setJugueteAbierto(false)}
+        alAnimarTernura={animarCriaturaDirecta}
+        alCerrarTernura={() => setMenuTernuraAbierto(false)}
+        alAcariciarLibre={acariciarLibre}
+        alLlamarAtencion={llamarAtencion}
         movimiento={movimiento}
         animando={animando}
         angulo={angulo}
@@ -721,7 +768,7 @@ export default function App() {
             partida={partida}
             alCerrar={() => setPanel(null)}
             alCambiarEspecie={cambiarEspecieDirecta}
-            alAnimar={animarCriaturaDirecta}
+            alAbrirTernura={abrirMenuTernura}
             alAvanzarTiempo={avanzarHorasDirecto}
             alAlternarDiaNoche={alternarDiaNocheDirecto}
             alDarMonedas={darMonedasDirecto}

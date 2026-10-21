@@ -8,7 +8,7 @@ interface Props {
   partida: Partida;
   alCerrar: () => void;
   alCambiarEspecie: (especieId: string) => void;
-  alAnimar: (tipo: string) => void;
+  alAbrirTernura: () => void;
   alAvanzarTiempo: (horas: number) => void;
   alAlternarDiaNoche: () => void;
   alDarMonedas: (cantidad: number) => void;
@@ -22,7 +22,7 @@ export default function PanelExploracion(props: Props) {
     partida,
     alCerrar,
     alCambiarEspecie,
-    alAnimar,
+    alAbrirTernura,
     alAvanzarTiempo,
     alAlternarDiaNoche,
     alDarMonedas,
@@ -62,7 +62,7 @@ export default function PanelExploracion(props: Props) {
         </div>
 
         <p className="explorer-lead">
-          Cambia de criatura al instante para verla en 3D, prueba cómo bosteza, avanza las horas o llena la habitación de juguetes.
+          Cambia de criatura al instante, abre abajo las animaciones sin perder de vista el diorama, avanza las horas o llena la habitación de juguetes.
         </p>
 
         <div className="explorer-body" data-gesto-scroll>
@@ -93,45 +93,15 @@ export default function PanelExploracion(props: Props) {
             </div>
           </div>
 
-          {/* 2. Emociones y animaciones */}
+          {/* 2. Emociones y animaciones: se prueban viendo el diorama, no bajo este modal. */}
           <div className="explorer-section">
             <span className="explorer-section-title">
               <Heart size={15} /> Ternura y animaciones
             </span>
-            <div className="explorer-buttons-row">
-              <button
-                type="button"
-                className="explorer-tool-btn"
-                onClick={() => alAnimar("bostezo")}
-                data-game-focus="true"
-              >
-                🥱 Ver bostezo
-              </button>
-              <button
-                type="button"
-                className="explorer-tool-btn"
-                onClick={() => alAnimar("jugar")}
-                data-game-focus="true"
-              >
-                🎉 Saltar de alegría
-              </button>
-              <button
-                type="button"
-                className="explorer-tool-btn"
-                onClick={() => alAnimar("comer")}
-                data-game-focus="true"
-              >
-                🍙 Ver mordisquitos
-              </button>
-              <button
-                type="button"
-                className="explorer-tool-btn"
-                onClick={() => alAnimar("evolucion")}
-                data-game-focus="true"
-              >
-                ✨ Fanfarria y giro
-              </button>
-            </div>
+            <p className="explorer-inline-note">Cierra este panel y reemplaza temporalmente la barra inferior para probarlas mirando a Mochi.</p>
+            <button type="button" className="explorer-tool-btn explorer-open-bottom" onClick={alAbrirTernura} data-game-focus="true">
+              <Wand2 size={15} /> Abrir menú abajo
+            </button>
           </div>
 
           {/* 3. Paseo en el tiempo y ambiente */}

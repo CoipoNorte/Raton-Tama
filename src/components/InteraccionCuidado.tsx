@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Check, CircleEllipsis, Droplets, Gamepad2, Heart, Pill, Shirt, Sparkles, X } from "lucide-react";
+import { CircleEllipsis, Droplets, Gamepad2, Pill, Shirt, Sparkles, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { fasesCuidado, objetivoCuidado } from "../game/cuidados";
 import type { AccionCuidado } from "../game/cuidados";
@@ -10,7 +10,6 @@ interface Props {
   accion: AccionCuidado;
   progreso: number;
   fase: number;
-  alCompletar: (accion: AccionCuidado) => void;
   alCancelar: () => void;
 }
 
@@ -20,18 +19,16 @@ const iconos: Record<string, LucideIcon> = {
   agua: Droplets,
   toalla: Shirt,
   curita: Pill,
-  corazon: Heart
 };
 
 const titulos: Record<AccionCuidado, string> = {
   jugar: "A jugar con la pelota",
   limpiar: "Hora del baño",
-  curar: "Una curita rápida",
-  mimar: "Mimos a placer"
+  curar: "Una curita rápida"
 };
 
 /** Panel flotante del cuidado: pasos, progreso y salidas accesibles. */
-export default function InteraccionCuidado({ accion, progreso, fase, alCompletar, alCancelar }: Props) {
+export default function InteraccionCuidado({ accion, progreso, fase, alCancelar }: Props) {
   const fases = fasesCuidado(accion);
   const faseActiva = fases[Math.min(fase, fases.length - 1)] ?? fases[0];
   const total = objetivoCuidado(accion);
@@ -75,9 +72,7 @@ export default function InteraccionCuidado({ accion, progreso, fase, alCompletar
           <b>{porcentaje}%</b>
         </div>
       </section>
-      <button className="care-help" type="button" onClick={() => alCompletar(accion)} data-game-focus="true">
-        <Check size={14} /> También vale con Enter o A
-      </button>
+      <span className="care-help" aria-hidden="true">Enter / A avanza un paso</span>
     </motion.div>
   );
 }

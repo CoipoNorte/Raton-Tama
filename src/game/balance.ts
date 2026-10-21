@@ -19,9 +19,10 @@ export const BALANCE = {
   "suciedadCadaMs": 10800000,
   // Ritmo de las micro-interacciones del diorama (nada de esto está hardcodeado en la UI).
   "cuidados": {
-    "limpieza": { "fases": ["jabon", "agua", "toalla"], "manchas": 6, "total": 18, "frotadasJabon": 2, "intervaloFroteMs": 380 },
+    "limpieza": { "fases": ["jabon", "agua", "toalla"], "manchas": 6, "total": 18, "frotadasJabon": 2, "pasadasAgua": 2, "pasadasToalla": 2, "intervaloFroteMs": 380 },
     "juegoPelota": { "pases": 5, "gravedad": 6.4, "rebote": 0.84, "radio": 0.25, "reboteSuelo": 3.1, "alturaMaxima": 1.62 },
-    "caricias": { "zonas": 7, "rejilla": 4, "intervaloSuaveMs": 230 },
+    "juegoPalo": { "largoVara": 0.85, "largoCuerda": 0.62, "gravedad": 8.2, "amortiguacion": 1.4 },
+    "caricias": { "zonas": 7, "rejilla": 4, "intervaloSuaveMs": 650, "rafagaCada": 7 },
     "cura": { "radioAcople": 0.32 }
   },
   "etapasMs": {

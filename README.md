@@ -33,11 +33,11 @@ No hay que leer párrafos ni contar números.
 | Vínculo | baja despacio | Constancia y mimos | 💗 |
 
 1. Pulsa **¡Empezar!** — el reloj de la simulación solo arranca entonces.
-2. Usa la barra de acciones de abajo: **Comer · Jugar · Limpiar · Dormir · Curar · Mimar**.
+2. Usa la barra de acciones de abajo: **Comer · Jugar · Limpiar · Dormir · Curar**. Acariciar no es un modo: está disponible directamente sobre la criatura.
 3. Con «Comer» se abre la despensa: **toca** para servir o **arrastra** la comida hasta su boquita.
-4. Los cuidados activos se juegan como una mascota virtual: **lanza la pelota** a Mochi tres veces, **frótala con jabón**, **arrastra la curita** sobre la marquita cuando esté enferma y **acaríciala** recorriendo su cuerpecito.
+4. Los cuidados activos se juegan como una mascota virtual: elige **pelota, vara con pelota atada o estrella**, mueve el juguete en el diorama, frota dos veces cada mancha con jabón, enjuaga dos veces, seca dos veces y arrastra la curita sobre la marquita cuando esté enferma.
 5. Dormir es intencionalmente un toque: mantiene cómoda la rutina nocturna.
-6. **Toca** a la criatura para empezar un mimo y **desliza** sobre el diorama para girarlo cuando no haya una interacción activa.
+6. **Toca** el diorama para llamar su atención; **acaricia** su pelaje para generar corazones y subir vínculo. Arrastrar el fondo gira la cámara: son gestos distintos.
 7. Gana monedas en los minijuegos y compra comida, medicinas y muebles en la tiendita.
 8. Vuelve cuando quieras: el juego avanza en tiempo real y te cuenta, con iconos, qué pasó mientras no estabas.
 
@@ -89,7 +89,7 @@ La entrada es **semántica**: el juego escucha acciones (`confirmar`,
 | Comer (menú despensa) | `1` | botón Comer | **X** |
 | Jugar | `2` | botón Jugar | **Y** |
 | Limpiar | `3` | botón Limpiar | **LT** |
-| Mimar | `4` | toque en la criatura | **RT** |
+| Cariño rápido | `4` | acariciar la criatura | **RT** |
 | Pausa | `P` | botón pausa | **Start** |
 | Menú / álbum | `M` | botón Álbum | **Select** |
 | Girar cámara | — | arrastrar horizontal | — |

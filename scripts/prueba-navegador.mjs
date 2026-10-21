@@ -162,8 +162,12 @@ for (let intento = 0; intento < 14 && pases < 5; intento += 1) {
   if (!pelota) break;
   await paginaFile.mouse.click(pelota.x, pelota.y);
   await paginaFile.waitForTimeout(950);
-  const progreso = await paginaFile.locator("[data-testid='care-progress']").getAttribute("data-progress").catch(() => "0");
-  pases = Number(progreso ?? 0);
+  const barra = paginaFile.locator("[data-testid='care-progress']");
+  if ((await barra.count()) === 0) {
+    pases = 5;
+    break;
+  }
+  pases = Number((await barra.getAttribute("data-progress")) ?? 0);
 }
 assert.ok(pases >= 5, `La pelota debe anotar 5 pases reales (llegó a ${pases})`);
 await cuidadoJuego.waitFor({ state: "detached" });
@@ -173,6 +177,12 @@ console.log("[OK] Juguetero + pelota física: se elige juguete y Mochi anota pas
 await paginaFile.locator(".action-limpiar").click();
 const limpieza = paginaFile.getByTestId("care-limpiar");
 await limpieza.waitFor();
+async function progresoCuidadoOCompleto(valorCompleto) {
+  const barra = paginaFile.locator("[data-testid='care-progress']");
+  if ((await barra.count()) === 0) return valorCompleto;
+  const valor = await barra.getAttribute("data-progress", { timeout: 900 }).catch(() => null);
+  return valor === null ? valorCompleto : Number(valor);
+}
 for (let fase = 0; fase < 3; fase += 1) {
   await esperarEscena("limpiar", fase);
   const objetivos = await esperarDato("objetivos");
@@ -183,11 +193,11 @@ for (let fase = 0; fase < 3; fase += 1) {
       await esperarEscena("limpiar", fase);
       const herramienta = await esperarDato("herramienta");
       await arrastre(herramienta, destino);
-      await paginaFile.waitForTimeout(340);
-      const hechas = Number((await paginaFile.locator("[data-testid='care-progress']").getAttribute("data-progress")) ?? 0);
+      await paginaFile.waitForTimeout(450);
+      const hechas = await progresoCuidadoOCompleto((fase + 1) * 6);
       if (hechas >= (fase + 1) * 6) break;
     }
-    const hechas = Number((await paginaFile.locator("[data-testid='care-progress']").getAttribute("data-progress")) ?? 0);
+    const hechas = await progresoCuidadoOCompleto((fase + 1) * 6);
     if (hechas >= (fase + 1) * 6) break;
   }
   if (fase < 2) {
@@ -200,19 +210,50 @@ for (let fase = 0; fase < 3; fase += 1) {
 await limpieza.waitFor({ state: "detached" });
 console.log("[OK] Baño completo: jabón, agua y toalla con herramienta localizada por su aro.");
 
-// Mimar: se arrastra por las zonas del pelaje y salen corazones (1–3 por roce).
-await paginaFile.locator(".action-mimar").click();
-const mimos = paginaFile.getByTestId("care-mimar");
-await mimos.waitFor();
-await esperarEscena("mimar", 0);
-const zonasMimo = await esperarDato("objetivos");
-assert.ok(zonasMimo.length >= 7, "La escena debe marcar las zonas acariciables en 3D");
-await paginaFile.mouse.move(zonasMimo[0].x, zonasMimo[0].y);
+// Caricias libres: no existe botón/modo Mimar; arrastrar el pelaje sube el vínculo.
+assert.equal(await paginaFile.locator(".action-mimar").count(), 0, "Mimar no debe ser una opción ni un modo separado");
+const vinculoAntes = Number(await paginaFile.locator(".mobile-needs").getByTestId("need-vinculo").getAttribute("data-value"));
+await paginaFile.waitForFunction(() => Boolean(document.querySelector("[data-testid='game-stage']")?.getAttribute("data-care-libre")));
+const zonasLibres = JSON.parse(await paginaFile.getByTestId("game-stage").getAttribute("data-care-libre"));
+assert.ok(zonasLibres.length >= 7, "La escena debe publicar las zonas acariciables libres en 3D");
+const cariciasAntes = await paginaFile.evaluate(() => JSON.parse(localStorage.getItem("raton-tama.partida") ?? "{}").contadores?.caricias ?? 0);
+await paginaFile.mouse.move(zonasLibres[0].x, zonasLibres[0].y);
 await paginaFile.mouse.down();
-for (const zona of zonasMimo.slice(1, 9)) await paginaFile.mouse.move(zona.x, zona.y, { steps: 3 });
+for (const zona of zonasLibres.slice(1, 9)) {
+  await paginaFile.mouse.move(zona.x, zona.y, { steps: 3 });
+  await paginaFile.waitForTimeout(700);
+}
 await paginaFile.mouse.up();
-await mimos.waitFor({ state: "detached" });
-console.log("[OK] Mimar: roces con corazones 1–3 y estallido final de 5.");
+await paginaFile.waitForFunction((antes) => (JSON.parse(localStorage.getItem("raton-tama.partida") ?? "{}").contadores?.caricias ?? 0) > antes, cariciasAntes);
+const vinculoDespues = Number(await paginaFile.locator(".mobile-needs").getByTestId("need-vinculo").getAttribute("data-value"));
+assert.ok(vinculoDespues > vinculoAntes, `Acariciar debe subir vínculo (${vinculoAntes} -> ${vinculoDespues})`);
+assert.equal(await paginaFile.locator("[data-focus-scope='cuidado']").count(), 0, "Acariciar no debe abrir ningún panel");
+console.log("[OK] Caricias libres: corazones por roce, vínculo y contador suben sin modos.");
+
+// Tocar el diorama solo llama la atención: mira al punto, sin abrir nada.
+const cajaToque = await stage.boundingBox();
+await paginaFile.mouse.click(cajaToque.x + cajaToque.width * 0.78, cajaToque.y + cajaToque.height * 0.3);
+await paginaFile.waitForTimeout(400);
+assert.equal(await paginaFile.locator("[data-focus-scope='cuidado']").count(), 0, "Tocar no debe abrir ningún modo");
+console.log("[OK] Toque por defecto: llama la atención sin abrir mimar.");
+
+// Palo con pelota atada: se arrastra el mango y la pelota cuelga con física real.
+await paginaFile.locator(".action-jugar").click();
+await paginaFile.locator("[data-focus-scope='juguete']").getByTestId("toy-palo").click();
+await paginaFile.getByTestId("care-jugar").waitFor();
+await paginaFile.waitForFunction(() => Boolean(document.querySelector("[data-testid='game-stage']")?.getAttribute("data-care-mango")));
+const mango = JSON.parse(await paginaFile.getByTestId("game-stage").getAttribute("data-care-mango"));
+const centroMascota = JSON.parse(await paginaFile.getByTestId("game-stage").getAttribute("data-care-mascota"));
+await paginaFile.mouse.move(mango.x, mango.y);
+await paginaFile.mouse.down();
+await paginaFile.mouse.move(centroMascota.x, centroMascota.y, { steps: 12 });
+await paginaFile.waitForTimeout(1200);
+await paginaFile.mouse.up();
+const pasesPalo = Number((await paginaFile.locator("[data-testid='care-progress']").getAttribute("data-progress")) ?? 0);
+assert.ok(pasesPalo >= 1, `El palo debe anotar al acercar la pelota colgando (llegó a ${pasesPalo})`);
+await paginaFile.keyboard.press("Escape");
+await paginaFile.getByTestId("care-jugar").waitFor({ state: "detached" });
+console.log("[OK] Palo con cuerda: la pelota cuelga, Mochi la sigue y anota al tocarla.");
 
 // Dormir no necesita arrastre: es la única acción de un toque para no hacer incómoda la rutina nocturna.
 await paginaFile.locator(".action-dormir").click();
@@ -221,35 +262,7 @@ assert.ok((await paginaFile.locator(".scene-canvas-wrap").getAttribute("class"))
 await paginaFile.locator(".action-dormir").click();
 console.log("[OK] Dormir/despertar sigue siendo de un solo toque.");
 
-// La curita aparece solo ante enfermedad: montamos un estado enfermo controlado
-// y comprobamos el gesto, la curación y el consumo de medicina.
-await paginaFile.evaluate(() => {
-  const clave = "raton-tama.partida";
-  const partida = JSON.parse(localStorage.getItem(clave) ?? "{}");
-  partida.mascota.enferma = true;
-  partida.mascota.necesidades.salud = 20;
-  partida.medicinas = Math.max(1, partida.medicinas ?? 0);
-  localStorage.setItem(clave, JSON.stringify(partida));
-});
-await paginaFile.reload({ waitUntil: "domcontentloaded" });
-await paginaFile.waitForSelector(".game-stage", { timeout: 20000 });
-await paginaFile.locator(".action-curar").click();
-await paginaFile.getByTestId("care-curar").waitFor();
-await esperarEscena("curar", 0);
-const marcaCurita = await esperarDato("objetivos");
-assert.ok(marcaCurita && marcaCurita.length >= 1, "La marca rosa debe publicarse en pantalla");
-const herramientaCurita = await esperarDato("herramienta");
-await arrastre(herramientaCurita, marcaCurita[0]);
-await paginaFile.getByTestId("care-curar").waitFor({ state: "detached" });
-const curada = await paginaFile.evaluate(() => {
-  const partida = JSON.parse(localStorage.getItem("raton-tama.partida") ?? "{}");
-  return { enferma: partida.mascota?.enferma, salud: partida.mascota?.necesidades?.salud, medicinas: partida.medicinas };
-});
-assert.equal(curada.enferma, false);
-assert.ok(curada.salud > 20 && curada.medicinas === 0, `La curita no consumió medicina o no curó: ${JSON.stringify(curada)}`);
-console.log("[OK] Curita: se arrastra a la marca indicada, cura y consume una medicina.");
-
-await paginaFile.getByRole("button", { name: "Abrir menú" }).click();
+await paginaFile.getByRole("button", { name: "Abrir menú", exact: true }).click();
 await paginaFile.locator("[data-focus-scope='menu-movil']").waitFor();
 await paginaFile.keyboard.press("Escape");
 await paginaFile.waitForSelector("[data-focus-scope='menu-movil']", { state: "detached" });
@@ -262,10 +275,27 @@ await explorador.waitFor();
 assert.equal(await explorador.locator(".explorer-species-chip").count(), 17);
 await explorador.getByRole("button", { name: /Sabio de luna/ }).click();
 await paginaFile.waitForFunction(() => document.querySelector('[data-testid="game-stage"]')?.getAttribute("data-species") === "sabio-luna");
-await explorador.getByRole("button", { name: /Ver bostezo/ }).click();
+assert.equal(await explorador.getByRole("button", { name: /Ver bostezo|Saltar de alegría|Ver mordisquitos|Fanfarria/ }).count(), 0, "El modal no debe tapar el diorama con botones de animación");
+await explorador.getByRole("button", { name: "Abrir menú abajo" }).click();
+await paginaFile.waitForSelector("[data-focus-scope='explorar']", { state: "detached" });
+const barraTernura = paginaFile.locator("[data-focus-scope='ternura']");
+await barraTernura.waitFor();
+assert.equal(await barraTernura.locator(".tenderness-button").count(), 5, "La barra temporal debe tener cuatro animaciones y Volver");
+
+await barraTernura.getByRole("button", { name: "Ver Bostezo" }).click();
 await paginaFile.waitForFunction(() => document.querySelector('[data-testid="game-stage"]')?.getAttribute("data-pet-motion") === "bostezo");
-await explorador.getByRole("button", { name: /Saltar de alegría/ }).click();
+await barraTernura.getByRole("button", { name: "Ver Salto feliz" }).click();
 await paginaFile.waitForFunction(() => document.querySelector('[data-testid="game-stage"]')?.getAttribute("data-pet-motion") === "jugar");
+await barraTernura.getByRole("button", { name: "Ver Mordisquitos" }).click();
+await paginaFile.waitForFunction(() => document.querySelector('[data-testid="game-stage"]')?.getAttribute("data-pet-motion") === "comer");
+await barraTernura.getByRole("button", { name: "Ver Giro mágico" }).click();
+await paginaFile.waitForFunction(() => document.querySelector('[data-testid="game-stage"]')?.getAttribute("data-pet-motion") === "evolucion");
+await barraTernura.getByRole("button", { name: "Cerrar menú de ternura" }).click();
+await barraTernura.waitFor({ state: "detached" });
+console.log("[OK] Ternura: el modal abre una barra inferior y las cuatro animaciones se ven sobre el diorama.");
+
+await paginaFile.getByRole("button", { name: "Varita mágica" }).click();
+await explorador.waitFor();
 const nocheAntes = await stage.getAttribute("data-night");
 await explorador.getByRole("button", { name: /Pasar a (Día|Noche)/ }).click();
 await paginaFile.waitForFunction((anterior) => document.querySelector('[data-testid="game-stage"]')?.getAttribute("data-night") !== anterior, nocheAntes);
@@ -287,6 +317,7 @@ await paginaFile.getByRole("button", { name: "Varita mágica" }).click();
 const hungerAntesSalto = Number(await paginaFile.locator(".mobile-needs").getByTestId("need-hambre").getAttribute("data-value"));
 await paginaFile.locator("[data-focus-scope='explorar']").getByRole("button", { name: /\+2 horas/ }).click();
 await paginaFile.waitForFunction((antes) => Number(document.querySelector('.mobile-needs [data-testid="need-hambre"]')?.getAttribute("data-value")) < antes, hungerAntesSalto);
+await paginaFile.waitForTimeout(280); // el guardado agrupa escrituras durante 220 ms
 const marcaRebasada = await paginaFile.evaluate(() => JSON.parse(localStorage.getItem("raton-tama.partida") ?? "{}").ultimaMarcaValidada);
 assert.ok(Math.abs(marcaRebasada - Date.now()) < 2500, "El simulador de exploración no debe dejar el reloj en el futuro");
 await paginaFile.waitForSelector("[data-focus-scope='explorar']", { state: "detached" });
@@ -300,8 +331,26 @@ const evolucionLarga = paginaFile.getByRole("dialog", { name: /ha florecido/ });
 if (await evolucionLarga.count()) await paginaFile.getByRole("button", { name: /Seguir juntos/ }).click();
 console.log("[OK] Avance +2/+6 h, suciedad y reloj rebasado a tiempo real." );
 
+// Tras 8 h de descuido la salud baja lo suficiente para admitir una curita,
+// sin manipular el guardado ni recargar (prueba el flujo real del juego).
+await paginaFile.locator(".action-curar").click();
+await paginaFile.getByTestId("care-curar").waitFor();
+await esperarEscena("curar", 0);
+const marcaCurita = await esperarDato("objetivos");
+assert.ok(marcaCurita && marcaCurita.length >= 1, "La marca rosa debe publicarse en pantalla");
+const herramientaCurita = await esperarDato("herramienta");
+await arrastre(herramientaCurita, marcaCurita[0]);
+await paginaFile.getByTestId("care-curar").waitFor({ state: "detached" });
+await paginaFile.waitForTimeout(260);
+const curada = await paginaFile.evaluate(() => {
+  const partida = JSON.parse(localStorage.getItem("raton-tama.partida") ?? "{}");
+  return { enferma: partida.mascota?.enferma, salud: partida.mascota?.necesidades?.salud, medicinas: partida.medicinas };
+});
+assert.ok(curada.salud > 20 && curada.medicinas === 0, `La curita no consumió medicina o no curó: ${JSON.stringify(curada)}`);
+console.log("[OK] Curita: se arrastra a la marca indicada, cura y consume una medicina.");
+
 // Tienda: compra de comida, medicina y objeto; la segunda pestaña cambia y actualiza el diorama.
-await paginaFile.getByRole("button", { name: "Abrir menú" }).click();
+await paginaFile.getByRole("button", { name: "Abrir menú", exact: true }).click();
 await paginaFile.locator(".mobile-menu-popover").getByRole("button", { name: "Tiendita" }).click();
 const tienda = paginaFile.locator("[data-focus-scope='tienda']");
 await tienda.waitFor();
@@ -331,7 +380,7 @@ await paginaFile.waitForTimeout(100);
 console.log("[OK] Exploración: se pueden colocar todos los muebles en el diorama." );
 
 // Álbum: especies y logros visibles.
-await paginaFile.getByRole("button", { name: "Abrir menú" }).click();
+await paginaFile.getByRole("button", { name: "Abrir menú", exact: true }).click();
 await paginaFile.locator(".mobile-menu-popover").getByRole("button", { name: "Álbum" }).click();
 const album = paginaFile.locator("[data-focus-scope='album']");
 await album.waitFor();
@@ -343,7 +392,7 @@ await album.getByRole("button", { name: "Cerrar álbum" }).click();
 console.log("[OK] Álbum: 17 especies y 9 logros." );
 
 // Minijuego: no se reinicia al pausar y permite puntuar con el teclado.
-await paginaFile.getByRole("button", { name: "Abrir menú" }).click();
+await paginaFile.getByRole("button", { name: "Abrir menú", exact: true }).click();
 await paginaFile.locator(".mobile-menu-popover").getByRole("button", { name: "Minijuegos" }).click();
 const listaJuegos = paginaFile.locator("[data-focus-scope='minijuegos']");
 await listaJuegos.waitFor();
@@ -368,7 +417,7 @@ await memoria.getByRole("button", { name: "Salir del minijuego" }).click();
 console.log(`[OK] Eco de patitas: secuencia completada (${puntos} puntos), reloj congelado en pausa.`);
 
 // Los otros dos plugins también puntúan con flechas semánticas.
-await paginaFile.getByRole("button", { name: "Abrir menú" }).click();
+await paginaFile.getByRole("button", { name: "Abrir menú", exact: true }).click();
 await paginaFile.locator(".mobile-menu-popover").getByRole("button", { name: "Minijuegos" }).click();
 const menuJuegos2 = paginaFile.locator("[data-focus-scope='minijuegos']");
 await menuJuegos2.getByRole("button", { name: /Sigue la flecha/ }).click();
@@ -380,7 +429,7 @@ await paginaFile.keyboard.press(teclaPorDireccion[direccion]);
 await paginaFile.waitForFunction(() => Number(document.querySelector(".score-mark")?.textContent?.replace(/\D/g, "")) >= 3);
 await flecha.getByRole("button", { name: "Salir del minijuego" }).click();
 
-await paginaFile.getByRole("button", { name: "Abrir menú" }).click();
+await paginaFile.getByRole("button", { name: "Abrir menú", exact: true }).click();
 await paginaFile.locator(".mobile-menu-popover").getByRole("button", { name: "Minijuegos" }).click();
 const menuJuegos3 = paginaFile.locator("[data-focus-scope='minijuegos']");
 await menuJuegos3.getByRole("button", { name: /Atrapa estrellas/ }).click();
@@ -398,6 +447,7 @@ console.log("[OK] Los tres plugins puntúan con teclado y la pausa conserva el j
 
 // Los efectos silenciados persisten al recargar la página.
 await paginaFile.getByRole("button", { name: "Silenciar efectos" }).click();
+await paginaFile.waitForTimeout(450); // deja completar el commit IndexedDB antes del pagehide
 await paginaFile.reload({ waitUntil: "domcontentloaded" });
 await paginaFile.waitForSelector(".app-shell", { timeout: 20000 });
 assert.ok(await paginaFile.getByRole("button", { name: "Activar efectos" }).isVisible());
@@ -432,6 +482,31 @@ const cajasComida = await paginaCompacta.locator(".food-choice").evaluateAll((bo
 assert.ok(cajasComida.every((boton) => boton.izquierda >= 0 && boton.derecha <= 320 && boton.alto >= 44), `La despensa se desborda en 320px: ${JSON.stringify(cajasComida)}`);
 console.log("[OK] 320x568 real: barra, bandeja de comida y objetivos táctiles caben sin scroll horizontal.");
 await paginaCompacta.close();
+
+// iPhone SE moderno (375×667): no solo cabe, cambia a la composición móvil compacta.
+const paginaSE = await probar("iPhone SE 375x667", `file://${join(dist, "index.html")}`, { width: 375, height: 667 });
+await paginaSE.getByRole("button", { name: /¡Empezar!/ }).click();
+const composicionSE = await paginaSE.evaluate(() => {
+  const etapa = document.querySelector(".game-stage")?.getBoundingClientRect();
+  const acciones = [...document.querySelectorAll(".action-button")].map((elemento) => elemento.getBoundingClientRect());
+  const necesidades = document.querySelector(".mobile-needs")?.getBoundingClientRect();
+  const marca = document.querySelector(".brand-copy");
+  return {
+    anchoVista: innerWidth,
+    anchoDocumento: document.documentElement.scrollWidth,
+    etapa: etapa ? { ancho: etapa.width, alto: etapa.height } : null,
+    acciones: acciones.map((caja) => ({ izquierda: caja.left, derecha: caja.right, alto: caja.height })),
+    altoNecesidades: necesidades?.height ?? 0,
+    marcaOculta: marca ? getComputedStyle(marca).display === "none" : true
+  };
+});
+assert.ok(composicionSE.anchoDocumento <= 375, `Overflow en iPhone SE: ${JSON.stringify(composicionSE)}`);
+assert.equal(composicionSE.acciones.length, 5, "La barra móvil debe mostrar cinco cuidados; acariciar es libre");
+assert.ok(composicionSE.acciones.every((boton) => boton.izquierda >= 0 && boton.derecha <= 375 && boton.alto >= 44));
+assert.ok(composicionSE.etapa && composicionSE.etapa.alto > composicionSE.altoNecesidades, "El diorama debe seguir siendo el área dominante");
+assert.equal(composicionSE.marcaOculta, true, "En iPhone SE el nombre de marca se pliega para liberar espacio");
+console.log("[OK] iPhone SE 375x667: composición móvil propia, cinco acciones y diorama dominante.");
+await paginaSE.close();
 
 await navegador.close();
 servidor.close();

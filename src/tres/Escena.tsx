@@ -8,6 +8,7 @@ import type { AccionCuidado } from "../game/cuidados";
 import type { ModeloComida } from "../components/IconoComida";
 import type { TipoJuguete } from "../components/SelectorJuguete";
 import Habitacion from "./Habitacion";
+import CariciasLibres3D from "./CariciasLibres3D";
 import Criatura from "./Criatura";
 import Fallback2D from "./Fallback2D";
 import Particulas from "./Particulas";
@@ -35,6 +36,9 @@ interface Props {
   onProgresoCuidado: (progreso: number, fase: number) => void;
   onFaseCuidado: (fase: number) => void;
   onCompletarCuidado: () => void;
+  cariciasLibres: boolean;
+  onAcariciarLibre: () => void;
+  onMirarLibre: () => void;
   onFalloWebgl: () => void;
 }
 
@@ -68,7 +72,8 @@ class LimiteEscena extends Component<LimiteProps, LimiteState> {
 export default function Escena(props: Props) {
   const {
     mascota, especie, objetos, movimiento, animando, angulo, ancho, alto, reducirMovimiento, noche, pausada,
-    accionCuidado, faseCuidado, bocado, comidaArrastrada, juguete, onProgresoCuidado, onFaseCuidado, onCompletarCuidado, onFalloWebgl
+    accionCuidado, faseCuidado, bocado, comidaArrastrada, juguete, onProgresoCuidado, onFaseCuidado, onCompletarCuidado,
+    cariciasLibres, onAcariciarLibre, onMirarLibre, onFalloWebgl
   } = props;
   const dormida = mascota.durmiendo;
   // La criatura nunca está del todo quieta (respira y parpadea), así que solo
@@ -150,6 +155,13 @@ export default function Escena(props: Props) {
                       onCompletar={onCompletarCuidado}
                     />
                   )}
+                  {/* Caricias libres: conviven con el reposo, nunca con un modo guiado. */}
+                  <CariciasLibres3D
+                    estado={estadoRef.current}
+                    activo={cariciasLibres && !dormida && !accionCuidado}
+                    onAcariciar={onAcariciarLibre}
+                    onMirar={onMirarLibre}
+                  />
                   <Particulas polvo={animando && !reducirMovimiento && !bajaPotencia} movimientoReducido={reducirMovimiento} />
                 </group>
               </group>

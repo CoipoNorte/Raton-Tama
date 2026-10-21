@@ -12,6 +12,9 @@ export type EfectoSonido =
   | "masticar"
   | "jugar"
   | "bote"
+  | "palo"
+  | "estrella"
+  | "agarre"
   | "limpiar"
   | "agua"
   | "toalla"
@@ -22,6 +25,7 @@ export type EfectoSonido =
   | "compra"
   | "error"
   | "mimo"
+  | "toque"
   | "logro"
   | "bostezo";
 
@@ -324,6 +328,20 @@ export function sonar(efecto: EfectoSonido): void {
         tono(240, 0.16, { forma: "sine", volumen: 0.055, barrido: 620 });
         tono(1200, 0.05, { forma: "triangle", volumen: 0.022, retraso: 0.01 });
         break;
+      case "palo":
+        // Golpe de madera + tintineo corto de la pelota atada.
+        ruido({ tipo: "bandpass", desde: 520, hasta: 760, duracion: 0.11, volumen: 0.025, q: 1.8 });
+        tono(330, 0.1, { forma: "triangle", volumen: 0.025, barrido: 460 });
+        tono(880, 0.13, { forma: "sine", volumen: 0.016, retraso: 0.06, barrido: 1175 });
+        break;
+      case "estrella":
+        // Brillo pentatónico, más aire que la pelota.
+        [988, 1318, 1568].forEach((frecuencia, indice) => tono(frecuencia, 0.2, { forma: "sine", volumen: 0.022, retraso: indice * 0.065, decaimiento: 0.26 }));
+        ruido({ tipo: "highpass", desde: 5400, duracion: 0.18, volumen: 0.009, retraso: 0.08 });
+        break;
+      case "agarre":
+        tono(480, 0.055, { forma: "sine", volumen: 0.022, barrido: 720 });
+        break;
       case "limpiar":
         ruido({ tipo: "bandpass", desde: 520, hasta: 1450, duracion: 0.34, volumen: 0.033, q: 1.2 });
         [880, 1180].forEach((frecuencia, indice) => tono(frecuencia, 0.16, { volumen: 0.018, retraso: 0.06 + indice * 0.09 }));
@@ -364,6 +382,11 @@ export function sonar(efecto: EfectoSonido): void {
       case "mimo":
         tono(659, 0.24, { forma: "sine", volumen: 0.034, decaimiento: 0.3 });
         tono(988, 0.28, { forma: "sine", volumen: 0.022, retraso: 0.07, decaimiento: 0.34 });
+        break;
+      case "toque":
+        // Toquecito para llamar la atención: pop suave ascendente, sin estridencias.
+        tono(520, 0.07, { forma: "sine", volumen: 0.028, barrido: 780 });
+        tono(780, 0.09, { forma: "sine", volumen: 0.02, retraso: 0.06, barrido: 990 });
         break;
       case "logro":
         [784, 1175, 1568].forEach((frecuencia, indice) => tono(frecuencia, 0.3, { forma: "sine", volumen: 0.042 - indice * 0.006, retraso: indice * 0.1 }));

@@ -1,7 +1,8 @@
 import { BALANCE } from "./balance";
 
-/** Acción de cuidado que se resuelve con un gesto sobre el diorama. */
-export type AccionCuidado = "jugar" | "limpiar" | "curar" | "mimar";
+/** Acción de cuidado con modo guiado (panel + progreso). Mimar no es un modo:
+ * acariciar es una interacción libre, disponible en cualquier momento. */
+export type AccionCuidado = "jugar" | "limpiar" | "curar";
 
 export interface FaseCuidado {
   id: string;
@@ -11,7 +12,7 @@ export interface FaseCuidado {
   objetivo: number;
 }
 
-const { limpieza, juegoPelota, caricias } = BALANCE.cuidados;
+const { limpieza, juegoPelota } = BALANCE.cuidados;
 
 /**
  * Cada cuidado se describe como una lista de fases; la UI y el 3D leen
@@ -24,14 +25,11 @@ export function fasesCuidado(accion: AccionCuidado): FaseCuidado[] {
   if (accion === "curar") {
     return [{ id: "curita", etiqueta: "Curita", icono: "curita", detalle: "Arrastra la curita hasta la marca rosa y pégala encima.", objetivo: 1 }];
   }
-  if (accion === "mimar") {
-    return [{ id: "caricias", etiqueta: "Caricias", icono: "corazon", detalle: "Acaricia su pelaje en varias zonas para llenar el medidor.", objetivo: caricias.zonas }];
-  }
   const [jabon, agua, toalla] = limpieza.fases;
   return [
-    { id: jabon, etiqueta: "Jabón", icono: "jabon", detalle: `Friega el jabón sobre ${limpieza.manchas} manchas hasta cubrirlas de espuma.`, objetivo: limpieza.manchas },
-    { id: agua, etiqueta: "Agua", icono: "agua", detalle: "Enjuaga con la regadera toda la espuma: quedará el pelaje mojado.", objetivo: limpieza.manchas },
-    { id: toalla, etiqueta: "Toalla", icono: "toalla", detalle: "Seca cada zona mojada con la toalla para terminar el baño.", objetivo: limpieza.manchas }
+    { id: jabon, etiqueta: "Jabón", icono: "jabon", detalle: `Friega ${limpieza.manchas} manchas dos veces hasta cubrirlas de espuma.`, objetivo: limpieza.manchas },
+    { id: agua, etiqueta: "Agua", icono: "agua", detalle: "Enjuaga dos veces cada mancha: primero sale la espuma, luego queda mojado.", objetivo: limpieza.manchas },
+    { id: toalla, etiqueta: "Toalla", icono: "toalla", detalle: "Seca dos veces cada zona mojada para terminar el baño.", objetivo: limpieza.manchas }
   ];
 }
 

@@ -12,6 +12,7 @@ import { useGestoSeguro } from "../hooks/useGestoSeguro";
 import { useViewport } from "../hooks/useViewport";
 import BarraAcciones from "../components/BarraAcciones";
 import type { AccionBarra } from "../components/BarraAcciones";
+import BarraTernura from "../components/BarraTernura";
 import HUD from "../components/HUD";
 import SelectorComida from "../components/SelectorComida";
 import InteraccionCuidado from "../components/InteraccionCuidado";
@@ -38,8 +39,11 @@ interface Props {
   bocado: ModeloComida | null;
   jugueteAbierto: boolean;
   juguete: TipoJuguete;
+  menuTernuraAbierto: boolean;
   alElegirJuguete: (juguete: TipoJuguete) => void;
   alCerrarJuguete: () => void;
+  alAnimarTernura: (tipo: string) => void;
+  alCerrarTernura: () => void;
   movimiento: string;
   animando: boolean;
   angulo: number;
@@ -64,6 +68,8 @@ interface Props {
   alEclosionarHuevo?: () => void;
   alAlternarMenuMovil: () => void;
   alCerrarMenuMovil: () => void;
+  alAcariciarLibre: () => void;
+  alLlamarAtencion: () => void;
 }
 
 const nombresEtapa: Record<Etapa, string> = {
@@ -122,10 +128,11 @@ export function globosNecesidad(mascota: Mascota): GloboAviso[] {
 export default function GameScreen(props: Props) {
   const {
     partida, bloqueadoPorModal, ambienteNoche, menuMovilAbierto, comidaAbierta, comidaArrastrada, interaccionCuidado, progresoCuidado, faseCuidado, bocado,
-    jugueteAbierto, juguete, alElegirJuguete, alCerrarJuguete,
+    jugueteAbierto, juguete, menuTernuraAbierto, alElegirJuguete, alCerrarJuguete, alAnimarTernura, alCerrarTernura,
     movimiento, animando, angulo, mandoConectado, fuenteActiva, alCambiarAngulo, alAccion,
     alPanel, alAlternarSonido, alAlternarMusica, alAlternarPausa, alCambiarNombre, alCerrarComida, alAlimentar, alAbrirTienda, alErrorWebgl,
-    alEclosionarHuevo, alAlternarMenuMovil, alCerrarMenuMovil, alCompletarInteraccion, alCancelarInteraccion, alCambiarProgresoCuidado, alCambiarFaseCuidado, alArrastrarComida
+    alEclosionarHuevo, alAlternarMenuMovil, alCerrarMenuMovil, alCompletarInteraccion, alCancelarInteraccion, alCambiarProgresoCuidado, alCambiarFaseCuidado, alArrastrarComida,
+    alAcariciarLibre, alLlamarAtencion
   } = props;
   const mascota = partida.mascota;
   const [webglDisponible] = useState(soportaWebGL);
@@ -137,6 +144,8 @@ export default function GameScreen(props: Props) {
   const [nombreBorrador, setNombreBorrador] = useState(mascota.nombre);
   const [ahora, setAhora] = useState(() => new Date());
   const anguloGesto = useRef<{ x: number; angulo: number } | null>(null);
+  // Si el gesto nació sobre Mochi, la capa 3D lo gestiona (mirar/acariciar) y aquí no rotamos.
+  const gestoEnMascota = useRef(false);
   const noche = ambienteNoche;
   const aviso = iconoNecesidad(mascota);
   const IconoAviso = aviso.icono;
@@ -159,29 +168,50 @@ export default function GameScreen(props: Props) {
 
   const esHuevo = mascota.especieId === "huevo-luna";
 
+  // Tocar NO abre ningún modo: en 3D la capa libre decide (mirar o acariciar);
+  // en 2D el toque da un mimo instantáneo con corazones.
   const gesto = useGestoSeguro({
     umbral: 11,
-              onTap: () => {
+    onTap: () => {
       if (interaccionCuidado) return;
-      if (esHuevo && alEclosionarHuevo) {
-        alEclosionarHuevo();
-      } else {
+      if (esHuevo) {
+        alEclosionarHuevo?.();
+      } else if (!webglDisponible) {
         alAccion("mimar");
       }
     },
     onMover: (punto) => {
       if (interaccionCuidado) return;
       if (punto.tipo !== "arrastre") return;
-      if (!anguloGesto.current) anguloGesto.current = { x: punto.x, angulo };
+      if (!anguloGesto.current && !gestoEnMascota.current) {
+        // El gesto 3D marca la hora al nacer sobre Mochi: si es reciente, es caricia, no giro.
+        const marca = Number(stageRef.current?.dataset.toqueMascota ?? 0);
+        if (Date.now() - marca < 350) {
+          gestoEnMascota.current = true;
+          return;
+        }
+        anguloGesto.current = { x: punto.x, angulo };
+      }
+      if (gestoEnMascota.current) return;
       const base = anguloGesto.current;
+      if (!base) return;
       alCambiarAngulo(Math.max(-0.42, Math.min(0.42, base.angulo + (punto.finalX - base.x) * 0.0024)));
     },
     onTerminar: (punto) => {
+      if (gestoEnMascota.current) {
+        gestoEnMascota.current = false;
+        anguloGesto.current = null;
+        return;
+      }
       if (interaccionCuidado) return;
       if (punto.tipo === "arrastre") {
         const base = anguloGesto.current ?? { x: punto.x, angulo };
         alCambiarAngulo(Math.max(-0.42, Math.min(0.42, base.angulo + (punto.finalX - base.x) * 0.0024)));
       }
+      anguloGesto.current = null;
+    },
+    onCancelar: () => {
+      gestoEnMascota.current = false;
       anguloGesto.current = null;
     }
   });
@@ -317,6 +347,9 @@ export default function GameScreen(props: Props) {
                   onProgresoCuidado={alCambiarProgresoCuidado}
                   onFaseCuidado={alCambiarFaseCuidado}
                   onCompletarCuidado={() => interaccionCuidado && alCompletarInteraccion(interaccionCuidado)}
+                  cariciasLibres={partida.iniciada && !partida.pausada && !mascota.seFue && !esHuevo && !interaccionCuidado}
+                  onAcariciarLibre={alAcariciarLibre}
+                  onMirarLibre={alLlamarAtencion}
                   onFalloWebgl={alErrorWebgl}
                 />
               </Suspense>
@@ -340,7 +373,6 @@ export default function GameScreen(props: Props) {
               accion={interaccionCuidado}
               progreso={progresoCuidado}
               fase={faseCuidado}
-              alCompletar={alCompletarInteraccion}
               alCancelar={alCancelarInteraccion}
             />}
             {comidaAbierta && <SelectorComida
@@ -365,14 +397,18 @@ export default function GameScreen(props: Props) {
       <div className="mobile-needs"><HUD mascota={mascota} compacto /></div>
 
       <footer className="game-footer">
-        <BarraAcciones
-          alElegir={alAccion}
-          deshabilitado={!partida.iniciada || partida.pausada || mascota.seFue || Boolean(interaccionCuidado)}
-          durmiendo={mascota.durmiendo}
-          enferma={mascota.enferma}
-          medicinas={partida.medicinas}
-          mandoConectado={mandoConectado}
-        />
+        {menuTernuraAbierto ? (
+          <BarraTernura alAnimar={alAnimarTernura} alCerrar={alCerrarTernura} mandoConectado={mandoConectado} />
+        ) : (
+          <BarraAcciones
+            alElegir={alAccion}
+            deshabilitado={!partida.iniciada || partida.pausada || mascota.seFue || Boolean(interaccionCuidado)}
+            durmiendo={mascota.durmiendo}
+            enferma={mascota.enferma}
+            medicinas={partida.medicinas}
+            mandoConectado={mandoConectado}
+          />
+        )}
       </footer>
     </div>
   );

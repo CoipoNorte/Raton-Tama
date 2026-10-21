@@ -26,6 +26,8 @@ interface Mancha {
   espuma: number;
   mojado: number;
   frotadasJabon: number;
+  pasadasAgua: number;
+  pasadasToalla: number;
   ultimoFroteMs: number;
 }
 
@@ -52,15 +54,37 @@ const AroGuia = forwardRef<THREE.Mesh, AroGuiaProps>(function AroGuia(props, ref
   );
 });
 
-const { limpieza, juegoPelota, caricias, cura } = BALANCE.cuidados;
+const { limpieza, juegoPelota, juegoPalo, cura } = BALANCE.cuidados;
 const RX = 0.91;
 const RY = 0.96;
 const CY = 0.03;
 const RZ = 0.82;
 const SUELO = -1.09;
-const LIMITE_X = 2.05;
 const LIMITE_Z = 1.18;
 const OBJETIVO_CURA = { u: 0.42, v: -0.18 };
+
+function crearEstrellaExtrudida(): THREE.BufferGeometry {
+  const forma = new THREE.Shape();
+  for (let indice = 0; indice < 10; indice += 1) {
+    const angulo = -Math.PI / 2 + (indice / 10) * Math.PI * 2;
+    const radio = indice % 2 === 0 ? 0.36 : 0.16;
+    const x = Math.cos(angulo) * radio;
+    const y = Math.sin(angulo) * radio;
+    if (indice === 0) forma.moveTo(x, y);
+    else forma.lineTo(x, y);
+  }
+  forma.closePath();
+  const geometria = new THREE.ExtrudeGeometry(forma, {
+    depth: 0.12,
+    bevelEnabled: true,
+    bevelSegments: 2,
+    bevelSize: 0.035,
+    bevelThickness: 0.035,
+    curveSegments: 3
+  });
+  geometria.center();
+  return geometria;
+}
 
 function superficie(u: number, v: number, separacion = 0.05): THREE.Vector3 {
   const interior = Math.max(0.04, 1 - u * u - v * v);
@@ -108,8 +132,8 @@ function sonidoJabon(efecto: "limpiar" | "agua" | "toalla"): void {
 
 /**
  * Cuidados jugables dentro del Canvas: la pelota rueda sola y Mochi la devuelve,
- * el baño es un ritual de tres pasos (jabón → agua → toalla), la curita se
- * coloca sobre la marca y las caricias sacan corazones. Todo se dibuja y se
+ * el baño es un ritual de tres pasos (jabón → agua → toalla) y la curita se
+ * coloca sobre la marca. Las caricias viven fuera de los modos guiados.
  * valida sobre los mismos puntos 3D, así nunca hay divergencia entre vista y acción.
  */
 export default function Interacciones3D({ accion, fase, juguete, estado, onProgreso, onFase, onCompletar }: Props) {
@@ -122,11 +146,8 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
   const aroHerramientaRef = useRef<THREE.Mesh>(null);
   
   const arrastreRef = useRef<{ fin: () => void } | null>(null);
-  const terminandoRef = useRef(false);
   const completadoRef = useRef(false);
-  const ultimoLlamadoRef = useRef(0);
-  const contadoresRef = useRef({ pases: 0, caricias: new Set<string>() });
-  const ultimoMimoMs = useRef(0);
+  const contadoresRef = useRef({ pases: 0 });
   const pelotaFisica = useRef({
     pos: new THREE.Vector3(-1.4, SUELO + 0.6, 0.5),
     vel: new THREE.Vector3(1.15, 1.8, 0.2),
@@ -140,8 +161,26 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
   const manchasRef = useRef<Mancha[]>([]);
   const [arrastrando, setArrastrando] = useState(false);
   const [curitaLista, setCuritaLista] = useState(false);
-  // Juguetes que controla el jugador: palo (palo con pelota) y estrella.
-  const manualRef = useRef({ pos: new THREE.Vector3(-1.35, SUELO + 0.55, 0.55), objetivo: new THREE.Vector3(-1.35, SUELO + 0.55, 0.55), manteniendo: false, ultimoContacto: -9, girando: 0 });
+  // Juguetes que controla el jugador: el palo lleva su pelota colgando de una
+  // cuerda con masa y gravedad; la estrella se guía directa con el dedo.
+  const manualRef = useRef({
+    pos: new THREE.Vector3(-1.35, SUELO + 0.55, 0.55),
+    objetivo: new THREE.Vector3(-1.35, SUELO + 0.55, 0.55),
+    previa: new THREE.Vector3(-1.35, SUELO + 0.55, 0.55),
+    bola: new THREE.Vector3(-1.1, SUELO + 0.1, 0.55),
+    bolaVel: new THREE.Vector3(),
+    manteniendo: false,
+    ultimoContacto: -9,
+    ultimoSuelo: -9,
+    girando: 0
+  });
+  const paloVaraRef = useRef<THREE.Mesh>(null);
+  const paloHiloRef = useRef<THREE.Mesh>(null);
+  const paloBolaRef = useRef<THREE.Group>(null);
+  const paloDirAux = useMemo(() => new THREE.Vector3(), []);
+  const paloHiloAux = useMemo(() => new THREE.Vector3(), []);
+  const paloPuntaAux = useMemo(() => new THREE.Vector3(), []);
+  const paloArriba = useMemo(() => new THREE.Vector3(0, 1, 0), []);
   const punteroManualRef = useRef<number | null>(null);
 
   const raycaster = useMemo(() => new THREE.Raycaster(), []);
@@ -151,7 +190,7 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
   const golpe = useMemo(() => new THREE.Vector3(), []);
   const local = useMemo(() => new THREE.Vector3(), []);
   const ndc = useMemo(() => new THREE.Vector2(), []);
-  const celdas = useMemo(() => celdasValidas(caricias.rejilla), []);
+  const geometriaEstrella = useMemo(crearEstrellaExtrudida, []);
 
   // Medio ancho visible en la profundidad de la herramienta: sin este cálculo,
   // en móviles verticales el reposo de las herramientas queda fuera del lienzo.
@@ -174,6 +213,7 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
     },
     [limiteVisibleX]
   );
+  const limitePelota = useMemo(() => Math.max(0.64, limiteVisibleX - juegoPelota.radio * 1.15), [limiteVisibleX]);
 
   /** Proyecta un punto local del grupo a coordenadas de pantalla. */
   const aPantalla = useCallback(
@@ -212,10 +252,9 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
   const soltarHerramienta = useCallback(() => {
     arrastreRef.current?.fin();
     arrastreRef.current = null;
-    terminandoRef.current = false;
     setArrastrando(false);
     const referencia = herramientaRef.current;
-    if (referencia && accion !== "mimar") {
+    if (referencia) {
       const reposo = reposoVisible(accion, fase);
       referencia.position.copy(reposo);
     }
@@ -231,15 +270,14 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
   // Reinicio limpio al cambiar de acción: sin gestos ni contadores colgados.
   useEffect(() => {
     completadoRef.current = false;
-    contadoresRef.current = { pases: 0, caricias: new Set<string>() };
+    contadoresRef.current = { pases: 0 };
     setCuritaLista(false);
     setArrastrando(false);
-    terminandoRef.current = false;
     estado.mirar = null;
     estado.mojado = 0;
     if (accion === "limpiar") {
       const elegidas = [...celdasValidas(4)].sort(() => Math.random() - 0.5).slice(0, limpieza.manchas);
-      const nuevas = elegidas.map((celda) => ({ u: celda.u, v: celda.v, suciedad: 1, espuma: 0, mojado: 0, frotadasJabon: 0, ultimoFroteMs: 0 }));
+      const nuevas = elegidas.map((celda) => ({ u: celda.u, v: celda.v, suciedad: 1, espuma: 0, mojado: 0, frotadasJabon: 0, pasadasAgua: 0, pasadasToalla: 0, ultimoFroteMs: 0 }));
       manchasRef.current = nuevas;
       setManchas(nuevas);
     } else {
@@ -247,20 +285,26 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
       setManchas([]);
     }
     if (accion === "jugar") {
-      pelotaFisica.current.pos.set(-1.4, SUELO + 0.6, 0.5);
+      pelotaFisica.current.pos.set(-limitePelota * 0.82, SUELO + 0.6, 0.5);
       pelotaFisica.current.vel.set(1.15, 1.8, 0.2);
-      manualRef.current.pos.set(-1.35, SUELO + 0.55, 0.72);
+      const xInicial = -Math.min(1.35, limiteVisibleX * 0.72);
+      manualRef.current.pos.set(xInicial, SUELO + 0.55, 0.72);
       manualRef.current.objetivo.copy(manualRef.current.pos);
+      manualRef.current.previa.copy(manualRef.current.pos);
+      manualRef.current.bola.set(-1.1, SUELO + 0.12, 0.72);
+      manualRef.current.bolaVel.set(0, 0, 0);
       manualRef.current.manteniendo = false;
       manualRef.current.ultimoContacto = -9;
+      manualRef.current.ultimoSuelo = -9;
     }
     onProgreso(0, 0);
     return () => {
-      terminandoRef.current = true;
       arrastreRef.current?.fin();
       arrastreRef.current = null;
     };
-  }, [accion, celdas, estado, onProgreso]);
+  }, [accion, estado, limitePelota, limiteVisibleX, onProgreso]);
+
+  useEffect(() => () => geometriaEstrella.dispose(), [geometriaEstrella]);
 
   const aplicarGesto = useCallback(
     (clientX: number, clientY: number) => {
@@ -272,7 +316,7 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
       const v = (punto.y - CY) / RY;
       estado.mirar = { x: punto.x, y: punto.y, z: punto.z };
       const referencia = herramientaRef.current;
-      if (referencia && accion !== "mimar") {
+      if (referencia) {
         // La herramienta se mueve sobre el cuerpo, nunca por debajo del suelo.
         referencia.position.set(
           THREE.MathUtils.clamp(punto.x, -1.9, 1.9),
@@ -280,57 +324,7 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
           Math.max(0.55, punto.z) + 0.28
         );
       }
-      if (!sobreElCuerpo(u, v)) {
-        // Tocar el fondo en modo mimar: solo llama su atención hacia el punto.
-        if (accion === "mimar") {
-          const ahora = performance.now();
-          if (ahora - ultimoLlamadoRef.current > 900) {
-            ultimoLlamadoRef.current = ahora;
-            sonar("mimo");
-            estado.feliz = Math.max(estado.feliz, 0.5);
-          }
-        }
-        return;
-      }
-
-      if (accion === "mimar") {
-        const ahora = performance.now();
-        const clave = `${Math.round(u * 2.4)}:${Math.round(v * 2.4)}`;
-        if (contadoresRef.current.caricias.has(clave) || ahora - ultimoMimoMs.current < caricias.intervaloSuaveMs) return;
-        contadoresRef.current.caricias.add(clave);
-        ultimoMimoMs.current = ahora;
-        const total = contadoresRef.current.caricias.size;
-        sonar("mimo");
-        // Mientras acaricias salta 1–3 corazones por roce; al llenar la barra,
-        // una ráfaga de 5 rodea a Mochi como agradecimiento.
-        emitirEfecto({
-          tipo: "corazon",
-          x: u * RX,
-          y: CY + v * RY,
-          z: 0.72,
-          cantidad: 1 + Math.floor(Math.random() * 3),
-          fuerza: 0.9 + Math.random() * 0.4
-        });
-        estado.feliz = 1;
-        estado.saltar = Math.max(estado.saltar, 0.45);
-        onProgreso(Math.min(total, caricias.zonas), 0);
-        if (total >= caricias.zonas) {
-          for (let indice = 0; indice < 5; indice += 1) {
-            const angulo = (indice / 5) * Math.PI * 2 - Math.PI / 2;
-            emitirEfecto({
-              tipo: "corazon",
-              x: Math.cos(angulo) * 0.85,
-              y: CY + Math.sin(angulo) * 0.95,
-              z: 0.75,
-              cantidad: 1,
-              fuerza: 1.25
-            });
-          }
-          estado.saltar = 1;
-          completar();
-        }
-        return;
-      }
+      if (!sobreElCuerpo(u, v)) return;
 
       if (accion === "curar") {
         if (Math.hypot(u - OBJETIVO_CURA.u, v - OBJETIVO_CURA.v) > cura.radioAcople) return;
@@ -361,24 +355,33 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
           return { ...mancha, frotadasJabon, ultimoFroteMs: ahora, espuma, suciedad: Math.max(0.15, 1 - espuma * 0.8) };
         }
         if (fase === 1) {
-          if (mancha.espuma <= 0.02 && mancha.mojado >= 1) return mancha;
+          // Enjuague en dos pasadas: primero se lleva media espuma, luego queda mojado.
+          if (mancha.pasadasAgua >= limpieza.pasadasAgua) return mancha;
           if (ahora - mancha.ultimoFroteMs < limpieza.intervaloFroteMs) return mancha;
           sonidoJabon("agua");
           emitirEfecto({ tipo: "gota", x: mancha.u * RX, y: CY + mancha.v * RY, z: 0.8, cantidad: 2, fuerza: 0.85 });
-          return { ...mancha, espuma: 0, mojado: 1, suciedad: 0, ultimoFroteMs: ahora };
+          const pasadasAgua = mancha.pasadasAgua + 1;
+          const lista = pasadasAgua >= limpieza.pasadasAgua;
+          return { ...mancha, pasadasAgua, ultimoFroteMs: ahora, espuma: lista ? 0 : 0.45, mojado: lista ? 1 : 0.55, suciedad: 0 };
         }
-        if (mancha.mojado <= 0.02) return mancha;
+        // Secado en dos pasadas: la toalla va absorbiendo el agua poco a poco.
+        if (mancha.pasadasToalla >= limpieza.pasadasToalla) return mancha;
         if (ahora - mancha.ultimoFroteMs < limpieza.intervaloFroteMs) return mancha;
         sonidoJabon("toalla");
         emitirEfecto({ tipo: "destello", x: mancha.u * RX, y: CY + mancha.v * RY, z: 0.8, cantidad: 2 });
         estado.temblar = 1;
-        return { ...mancha, mojado: 0, ultimoFroteMs: ahora };
+        const pasadasToalla = mancha.pasadasToalla + 1;
+        return { ...mancha, pasadasToalla, ultimoFroteMs: ahora, mojado: pasadasToalla >= limpieza.pasadasToalla ? 0 : 0.5 };
       });
       if (!tocada) return;
       manchasRef.current = siguientes;
       setManchas(siguientes);
       const hechas = siguientes.filter((mancha) =>
-        fase === 0 ? mancha.frotadasJabon >= limpieza.frotadasJabon : fase === 1 ? mancha.mojado >= 1 : mancha.mojado <= 0.02 && mancha.espuma <= 0.02
+        fase === 0
+          ? mancha.frotadasJabon >= limpieza.frotadasJabon
+          : fase === 1
+            ? mancha.pasadasAgua >= limpieza.pasadasAgua
+            : mancha.pasadasToalla >= limpieza.pasadasToalla
       ).length;
       // Progreso parcial visible en cada roce; al terminar la fase, avanza.
       onProgreso(fase * limpieza.manchas + hechas, fase);
@@ -497,8 +500,8 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
       if (herramientaRef.current) herramientaRef.current.rotation.y += arrastrando ? paso * 7 : paso * 1.8;
     }
 
-    // Juguetes manuales: el jugador los mueve; Mochi los persigue y anota al tocarlos.
-    if (accion === "jugar" && juguete !== "pelota") {
+    // Estrella: la guías con el dedo y Mochi la persigue y anota al tocarla.
+    if (accion === "jugar" && juguete === "estrella") {
       const m = manualRef.current;
       if (m.manteniendo) {
         m.pos.lerp(m.objetivo, Math.min(1, paso * 13));
@@ -509,11 +512,10 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
         m.pos.z += (0.72 - m.pos.z) * paso * 2;
       }
       m.girando += paso * (m.manteniendo ? 5 : 1.4);
-      const malla = juguete === "palo" ? paloRef.current : estrellaRef.current;
+      const malla = estrellaRef.current;
       if (malla) {
         malla.position.copy(m.pos);
-        if (juguete === "estrella") malla.rotation.z = m.girando;
-        else malla.rotation.z = Math.sin(m.girando) * 0.16;
+        malla.rotation.z = m.girando;
       }
       estado.mirar = { x: m.pos.x, y: THREE.MathUtils.clamp(m.pos.y, CY - 0.3, CY + 0.75), z: 0.55 };
 
@@ -522,7 +524,7 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
         m.ultimoContacto = tiempo;
         estado.saltar = 1;
         estado.feliz = 1;
-        sonar("jugar");
+        sonar("estrella");
         emitirEfecto({ tipo: "destello", x: m.pos.x, y: m.pos.y, z: 0.8, cantidad: 6 });
         emitirEfecto({ tipo: "corazon", x: m.pos.x, y: m.pos.y + 0.2, z: 0.8, cantidad: 2, fuerza: 0.8 });
         // Empujoncito para que el juguete salga volando y vuelva a buscarse.
@@ -537,6 +539,106 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
         const pantalla = aPantalla(m.pos);
         const mascota = aPantalla({ x: 0, y: CY, z: 0.45 });
         if (pantalla) publicar({ fase: 0, pelota: pantalla, mascota });
+      }
+      return;
+    }
+
+    // Palo con pelota atada: tú mueves el mango y la pelota cuelga de la cuerda
+    // como una masa con gravedad, así que se balancea, rebota y responde al tirón.
+    if (accion === "jugar" && juguete === "palo") {
+      const m = manualRef.current;
+      if (m.manteniendo) {
+        m.pos.lerp(m.objetivo, Math.min(1, paso * 14));
+      } else {
+        m.pos.x += (Math.sin(tiempo * 1.1) * 0.8 - m.pos.x * 0.12) * paso * 0.5;
+        m.pos.y += ((SUELO + 0.62 + Math.sin(tiempo * 2.1) * 0.12) - m.pos.y) * paso * 2;
+        m.pos.z += (0.72 - m.pos.z) * paso * 2;
+      }
+      // La vara se inclina contra el movimiento de la mano, como una caña de verdad.
+      const velManoX = (m.pos.x - m.previa.x) / Math.max(0.001, paso);
+      const velManoY = (m.pos.y - m.previa.y) / Math.max(0.001, paso);
+      m.previa.copy(m.pos);
+      paloDirAux.set(0.34 - velManoX * 0.16, 0.86 - Math.max(0, velManoY) * 0.05, 0.1).normalize();
+      if (paloDirAux.y < 0.3) {
+        paloDirAux.y = 0.3;
+        paloDirAux.normalize();
+      }
+      const puntaX = m.pos.x + paloDirAux.x * juegoPalo.largoVara;
+      const puntaY = m.pos.y + paloDirAux.y * juegoPalo.largoVara;
+      const puntaZ = m.pos.z + paloDirAux.z * juegoPalo.largoVara;
+      // La pelota: gravedad + rozamiento del aire + cuerda inextensible.
+      const bola = m.bola;
+      m.bolaVel = m.bolaVel ?? new THREE.Vector3();
+      const vel = m.bolaVel as THREE.Vector3;
+      vel.y -= juegoPalo.gravedad * paso;
+      vel.multiplyScalar(Math.exp(-juegoPalo.amortiguacion * paso));
+      bola.addScaledVector(vel, paso);
+      paloHiloAux.set(bola.x - puntaX, bola.y - puntaY, bola.z - puntaZ);
+      const largo = Math.max(0.001, paloHiloAux.length());
+      if (largo > juegoPalo.largoCuerda) {
+        paloHiloAux.multiplyScalar(1 / largo);
+        bola.set(puntaX + paloHiloAux.x * juegoPalo.largoCuerda, puntaY + paloHiloAux.y * juegoPalo.largoCuerda, puntaZ + paloHiloAux.z * juegoPalo.largoCuerda);
+        const radial = vel.dot(paloHiloAux);
+        if (radial > 0) vel.addScaledVector(paloHiloAux, -radial);
+      }
+      if (bola.y < SUELO + 0.12) {
+        bola.y = SUELO + 0.12;
+        if (vel.y < -0.9 && tiempo - m.ultimoSuelo > 0.3) {
+          m.ultimoSuelo = tiempo;
+          sonar("bote");
+          emitirEfecto({ tipo: "destello", x: bola.x, y: SUELO + 0.05, z: bola.z, cantidad: 2, fuerza: 0.5 });
+        }
+        vel.y = Math.abs(vel.y) * 0.42;
+        vel.x *= 0.94;
+        vel.z *= 0.94;
+      }
+      const mango = paloRef.current;
+      if (mango) {
+        mango.position.copy(m.pos);
+        mango.rotation.set(0, 0, 0);
+      }
+      const vara = paloVaraRef.current;
+      if (vara) {
+        vara.quaternion.setFromUnitVectors(paloArriba, paloDirAux);
+        vara.position.copy(paloDirAux).multiplyScalar(juegoPalo.largoVara / 2);
+      }
+      const hilo = paloHiloRef.current;
+      const bolaMalla = paloBolaRef.current;
+      if (hilo && bolaMalla) {
+        paloPuntaAux.set(puntaX, puntaY, puntaZ);
+        paloHiloAux.copy(bola).sub(paloPuntaAux);
+        const largoHilo = Math.max(0.05, paloHiloAux.length());
+        paloHiloAux.normalize();
+        hilo.position.copy(paloPuntaAux).sub(m.pos).addScaledVector(paloHiloAux, largoHilo / 2);
+        hilo.quaternion.setFromUnitVectors(paloArriba, paloHiloAux);
+        hilo.scale.set(1, largoHilo, 1);
+        bolaMalla.position.copy(bola).sub(m.pos);
+        bolaMalla.rotation.x += paso * (2 + vel.length() * 0.8);
+      }
+      estado.mirar = { x: bola.x, y: THREE.MathUtils.clamp(bola.y, CY - 0.3, CY + 0.75), z: 0.55 };
+
+      const cercania = Math.hypot(bola.x, bola.y - CY, (bola.z - 0.35) * 0.7);
+      if (cercania < 1.05 && tiempo - m.ultimoContacto > 1.0 && !completadoRef.current) {
+        m.ultimoContacto = tiempo;
+        estado.saltar = 1;
+        estado.feliz = 1;
+        sonar("palo");
+        emitirEfecto({ tipo: "destello", x: bola.x, y: bola.y, z: 0.8, cantidad: 6 });
+        // Mochi patea la pelota: sale despedida y la cuerda la recoge.
+        const empuje = new THREE.Vector3(bola.x, bola.y - CY + 0.4, bola.z * 0.5).normalize();
+        vel.addScaledVector(empuje, 2.6);
+        vel.y = Math.max(vel.y, 1.6);
+        contadoresRef.current.pases += 1;
+        const progreso = Math.min(contadoresRef.current.pases, juegoPelota.pases);
+        onProgreso(progreso, 0);
+        if (progreso >= juegoPelota.pases) completar();
+      }
+      b.cuadros += 1;
+      if (b.cuadros % 8 === 0) {
+        const pantalla = aPantalla(bola);
+        const mangoPantalla = aPantalla(m.pos);
+        const mascota = aPantalla({ x: 0, y: CY, z: 0.45 });
+        if (pantalla) publicar({ fase: 0, pelota: pantalla, mango: mangoPantalla, mascota });
       }
       return;
     }
@@ -556,8 +658,8 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
         b.vel.x *= 0.985;
         b.vel.z *= 0.985;
       }
-      if (Math.abs(b.pos.x) > LIMITE_X) {
-        b.pos.x = Math.sign(b.pos.x) * LIMITE_X;
+      if (Math.abs(b.pos.x) > limitePelota) {
+        b.pos.x = Math.sign(b.pos.x) * limitePelota;
         b.vel.x = -b.vel.x * 0.82;
       }
       if (b.pos.z > LIMITE_Z) {
@@ -646,19 +748,19 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
           ? manchas.map((mancha) => aPantalla(superficie(mancha.u, mancha.v, 0.12))).filter(Boolean)
           : accion === "curar"
             ? [aPantalla(superficie(OBJETIVO_CURA.u, OBJETIVO_CURA.v, 0.12))].filter(Boolean)
-            : celdas.slice(0, caricias.zonas).map((celda) => aPantalla(superficie(celda.u, celda.v, 0.16))).filter(Boolean);
+            : [];
       publicar({
         fase,
         accion,
         herramienta: aPantalla(reposoVisible(accion, fase)),
         objetivos,
         ...(accion === "jugar" && juguete !== "pelota"
-          ? { pelota: aPantalla(manualRef.current.pos), mascota: aPantalla({ x: 0, y: CY, z: 0.45 }) }
+          ? { pelota: aPantalla(manualRef.current.pos), mango: aPantalla(manualRef.current.pos), mascota: aPantalla({ x: 0, y: CY, z: 0.45 }) }
           : {}),
       });
     });
     return () => window.cancelAnimationFrame(marco);
-  }, [accion, celdas, fase, manchas, publicar, aPantalla, size.width, size.height]);
+  }, [accion, fase, manchas, publicar, aPantalla, size.width, size.height]);
 
   const mostrarHerramienta = accion === "limpiar" || accion === "curar";
   const reposo = reposoVisible(accion, fase);
@@ -696,24 +798,36 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
         </group>
       )}
 
-      {/* Palo con pelota atada: lo llevas tú con el dedo y Mochi la patea. */}
+      {/* Vara con pelota atada: el mango sigue tu dedo y la pelota cuelga de la
+          cuerda con física real (gravedad, balanceo y rebotes en el suelo). */}
       {accion === "jugar" && juguete === "palo" && (
         <group ref={paloRef} onPointerDown={iniciarManual} onPointerOver={() => (gl.domElement.style.cursor = "grab")} onPointerOut={() => (gl.domElement.style.cursor = "")}>
-          <mesh castShadow position={[-0.52, -0.34, 0]} rotation={[0, 0, Math.PI * 0.72]}>
-            <cylinderGeometry args={[0.035, 0.045, 1.25, 10]} />
-            <meshToonMaterial color="#b98a56" />
-          </mesh>
-          <mesh position={[-0.94, -0.74, 0]} scale={0.14}>
-            <sphereGeometry args={[1, 14, 12]} />
+          <mesh castShadow>
+            <sphereGeometry args={[0.11, 16, 12]} />
             <meshToonMaterial color="#8d6a43" />
           </mesh>
-          <mesh castShadow position={[0, 0, 0]}>
-            <sphereGeometry args={[0.24, 24, 18]} />
-            <meshPhysicalMaterial color="#8fc2e8" roughness={0.25} clearcoat={0.8} />
+          <mesh ref={paloVaraRef} castShadow>
+            <cylinderGeometry args={[0.032, 0.042, juegoPalo.largoVara, 10]} />
+            <meshToonMaterial color="#b98a56" />
           </mesh>
-          <mesh position={[-0.07, 0.09, 0.18]}>
-            <sphereGeometry args={[0.035, 10, 8]} />
-            <meshBasicMaterial color="#fffdf4" />
+          <mesh ref={paloHiloRef}>
+            <cylinderGeometry args={[0.011, 0.011, 1, 6]} />
+            <meshBasicMaterial color="#e8d9b8" />
+          </mesh>
+          <group ref={paloBolaRef}>
+            <mesh castShadow>
+              <sphereGeometry args={[0.16, 24, 18]} />
+              <meshPhysicalMaterial color="#8fc2e8" roughness={0.25} clearcoat={0.8} />
+            </mesh>
+            <mesh position={[-0.05, 0.06, 0.12]}>
+              <sphereGeometry args={[0.028, 10, 8]} />
+              <meshBasicMaterial color="#fffdf4" />
+            </mesh>
+          </group>
+          {/* Zona de agarre invisible: en móvil el mango se coge sin puntería. */}
+          <mesh>
+            <sphereGeometry args={[0.42, 10, 8]} />
+            <meshBasicMaterial transparent opacity={0} colorWrite={false} depthWrite={false} />
           </mesh>
         </group>
       )}
@@ -730,11 +844,10 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
       {/* Estrella de luciérnaga: la guías por la pantalla y ella revolotea. */}
       {accion === "jugar" && juguete === "estrella" && (
         <group ref={estrellaRef} onPointerDown={iniciarManual} onPointerOver={() => (gl.domElement.style.cursor = "grab")} onPointerOut={() => (gl.domElement.style.cursor = "")}>
-          <mesh castShadow scale={0.34}>
-            <octahedronGeometry args={[1, 0]} />
-            <meshPhysicalMaterial color="#ffd66e" roughness={0.2} metalness={0.15} clearcoat={0.9} emissive="#f5b53d" emissiveIntensity={0.35} />
+          <mesh castShadow geometry={geometriaEstrella}>
+            <meshPhysicalMaterial color="#ffd66e" roughness={0.18} metalness={0.08} clearcoat={0.95} clearcoatRoughness={0.12} emissive="#f5b53d" emissiveIntensity={0.3} />
           </mesh>
-          <mesh scale={0.16}>
+          <mesh position={[0, 0, 0.11]} scale={0.12}>
             <sphereGeometry args={[1, 16, 12]} />
             <meshBasicMaterial color="#fff6d0" />
           </mesh>
@@ -831,38 +944,6 @@ export default function Interacciones3D({ accion, fase, juguete, estado, onProgr
         </group>
       )}
 
-      {/* Casca invisible tras Mochi: cualquier toque del diorama llama su atención. */}
-      {accion === "mimar" && (
-        <mesh
-          position={[0, 0.35, -0.95]}
-          onPointerDown={iniciarArrastre}
-          onPointerOver={() => {
-            gl.domElement.style.cursor = "pointer";
-          }}
-          onPointerOut={() => {
-            gl.domElement.style.cursor = "";
-          }}
-        >
-          <planeGeometry args={[5.2, 3.4]} />
-          <meshBasicMaterial transparent opacity={0} colorWrite={false} depthWrite={false} />
-        </mesh>
-      )}
-      {accion === "mimar" && (
-        <mesh
-          position={[0, CY, 0.12]}
-          scale={[RX * 1.08, RY * 1.08, 0.72]}
-          onPointerDown={iniciarArrastre}
-          onPointerOver={() => {
-            gl.domElement.style.cursor = "grab";
-          }}
-          onPointerOut={() => {
-            gl.domElement.style.cursor = "";
-          }}
-        >
-          <sphereGeometry args={[1, 20, 16]} />
-          <meshBasicMaterial transparent opacity={0} colorWrite={false} depthWrite={false} />
-        </mesh>
-      )}
     </group>
   );
 }

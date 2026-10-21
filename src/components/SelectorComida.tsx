@@ -5,6 +5,7 @@ import { ShoppingBag, X } from "lucide-react";
 import { COMIDAS } from "../game/comidas";
 import type { Alimento, ArrastreComida, Partida } from "../game/types";
 import IconoComida from "./IconoComida";
+import { sonar } from "../game/sound";
 
 interface Props {
   partida: Partida;
@@ -81,6 +82,10 @@ function useArrastreComida(
       arrastro: false,
       fin
     };
+    sonar("agarre");
+    // Desde pointerdown el objeto ya está "en la mano"; no esperamos al umbral.
+    alArrastrar({ comidaId: comida.id, modelo: comida.modelo, x: evento.clientX, y: evento.clientY });
+    if (mostrarFantasma2D) setFantasma({ x: evento.clientX, y: evento.clientY, seguimiento: false });
     function mover(ev: PointerEvent) {
       const activo = activoRef.current;
       if (!activo || activo.id !== ev.pointerId) return;
@@ -164,9 +169,9 @@ export default function SelectorComida({ partida, escenario, alElegir, alCerrar,
       role="group"
       aria-label="Elige algo rico para comer"
       data-focus-scope="comida"
-      initial={{ opacity: 0, y: 16, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 10, scale: 0.97 }}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 10 }}
       transition={{ type: "spring", damping: 24, stiffness: 240 }}
     >
       <div className="food-tray-heading">
